@@ -75,6 +75,11 @@ class CalDAVConnection extends CommonObject
 	public $active_by_default;
 
 	/**
+	 * @var int Vérifier le certificat SSL (1) ou non (0, serveur de test uniquement)
+	 */
+	public $ssl_verify = 1;
+
+	/**
 	 * @var int Entité Dolibarr
 	 */
 	public $entity;
@@ -113,6 +118,10 @@ class CalDAVConnection extends CommonObject
 			$this->error = "L'URL est obligatoire";
 			return -1;
 		}
+		if (!self::isHttpsUrl($this->url)) {
+			$this->error = "L'URL du serveur CalDAV doit commencer par https://";
+			return -1;
+		}
 		if (empty($this->username)) {
 			$this->error = "Le nom d'utilisateur est obligatoire";
 			return -1;
@@ -136,11 +145,12 @@ class CalDAVConnection extends CommonObject
 		if ($this->active_by_default === null) {
 			$this->active_by_default = 1;
 		}
+		$this->ssl_verify = self::normalizeSslVerify($this->ssl_verify);
 
 		$this->db->begin();
 
 		$sql = "INSERT INTO ".MAIN_DB_PREFIX."caldav_connections (";
-		$sql .= "name, url, username, password, calendar_path, color, enabled, active_by_default, entity, date_creation, fk_user_author";
+		$sql .= "name, url, username, password, calendar_path, color, enabled, active_by_default, ssl_verify, entity, date_creation, fk_user_author";
 		$sql .= ") VALUES (";
 		$sql .= "'".$this->db->escape($this->name)."',";
 		$sql .= "'".$this->db->escape($this->url)."',";
@@ -150,6 +160,7 @@ class CalDAVConnection extends CommonObject
 		$sql .= "'".$this->db->escape($this->color)."',";
 		$sql .= ((int) $this->enabled).",";
 		$sql .= ((int) $this->active_by_default).",";
+		$sql .= ((int) $this->ssl_verify).",";
 		$sql .= ((int) $this->entity).",";
 		$sql .= "'".$this->db->idate(dol_now())."',";
 		$sql .= ($user ? (int) $user->id : "NULL");
@@ -175,7 +186,7 @@ class CalDAVConnection extends CommonObject
 	 */
 	public function fetch($id)
 	{
-		$sql = "SELECT rowid, name, url, username, password, calendar_path, color, enabled, active_by_default, entity";
+		$sql = "SELECT rowid, name, url, username, password, calendar_path, color, enabled, active_by_default, ssl_verify, entity";
 		$sql .= " FROM ".MAIN_DB_PREFIX."caldav_connections";
 		$sql .= " WHERE rowid = ".((int) $id);
 
@@ -192,6 +203,7 @@ class CalDAVConnection extends CommonObject
 				$this->color = $obj->color;
 				$this->enabled = $obj->enabled;
 				$this->active_by_default = $obj->active_by_default;
+				$this->ssl_verify = isset($obj->ssl_verify) ? self::normalizeSslVerify($obj->ssl_verify) : 1;
 				$this->entity = $obj->entity;
 				return 1;
 			} else {
@@ -215,6 +227,17 @@ class CalDAVConnection extends CommonObject
 	{
 		$error = 0;
 
+		if (empty($this->url)) {
+			$this->error = "L'URL est obligatoire";
+			return -1;
+		}
+		if (!self::isHttpsUrl($this->url)) {
+			$this->error = "L'URL du serveur CalDAV doit commencer par https://";
+			return -1;
+		}
+
+		$this->ssl_verify = self::normalizeSslVerify($this->ssl_verify);
+
 		// Chiffrer le mot de passe s'il a été modifié
 		if (!empty($this->password) && !preg_match('/^[a-f0-9]{32}$/', $this->password)) {
 			$this->password = dol_encode($this->password);
@@ -233,6 +256,7 @@ class CalDAVConnection extends CommonObject
 		$sql .= " color = '".$this->db->escape($this->color)."',";
 		$sql .= " enabled = ".((int) $this->enabled).",";
 		$sql .= " active_by_default = ".((int) $this->active_by_default).",";
+		$sql .= " ssl_verify = ".((int) $this->ssl_verify).",";
 		$sql .= " fk_user_modif = ".($user ? (int) $user->id : "NULL");
 		$sql .= " WHERE rowid = ".((int) $this->id);
 
@@ -303,5 +327,38 @@ class CalDAVConnection extends CommonObject
 		}
 
 		return $connections;
+	}
+
+	/**
+	 * L'URL du serveur CalDAV doit être en HTTPS (protège le mot de passe).
+	 *
+	 * @param  string $url URL saisie
+	 * @return bool
+	 */
+	public static function isHttpsUrl($url)
+	{
+		$url = trim((string) $url);
+		if ($url === '') {
+			return false;
+		}
+		$parts = parse_url($url);
+		if (!is_array($parts) || empty($parts['scheme']) || empty($parts['host'])) {
+			return false;
+		}
+		return strtolower($parts['scheme']) === 'https';
+	}
+
+	/**
+	 * Normalise le drapeau de vérification SSL (défaut : activé).
+	 *
+	 * @param  mixed $value Valeur brute
+	 * @return int          1 ou 0
+	 */
+	public static function normalizeSslVerify($value)
+	{
+		if ($value === null || $value === '') {
+			return 1;
+		}
+		return ((int) $value) ? 1 : 0;
 	}
 }

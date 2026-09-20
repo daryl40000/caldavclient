@@ -46,7 +46,7 @@ if (!$user->admin) {
 	accessforbidden();
 }
 
-$moduleVersion = '0.20.0';
+$moduleVersion = '0.21.0';
 $versionFile = DOL_DOCUMENT_ROOT.'/custom/caldavclient/VERSION';
 if (is_readable($versionFile)) {
 	$versionContent = trim((string) @file_get_contents($versionFile));

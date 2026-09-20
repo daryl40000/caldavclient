@@ -72,7 +72,7 @@ class modCalDAvClient extends DolibarrModules
 	$this->editor_url = '';
 		
 	// Valeurs possibles pour version: 'development', 'experimental', 'dolibarr' ou version
-	$this->version = '0.20.0';
+	$this->version = '0.21.0';
 		// Licence : GNU GPL version 3 ou ultérieure (SPDX GPL-3.0-or-later) — fichiers LICENSE et COPYING à la racine du module.
 
 		// Clé utilisée dans la table llx_const pour sauvegarder le statut activé/désactivé du module
@@ -257,8 +257,6 @@ class modCalDAvClient extends DolibarrModules
 
 		// Appliquer automatiquement les correctifs SQL nécessaires (sans action manuelle).
 		// Important: on ne doit pas dépendre d'un script SQL "update_*.sql" lancé dans un ordre de tri.
-		// Ici, on détecte et corrige la FK fk_actioncomm en ON DELETE CASCADE qui empêche la propagation
-		// des suppressions Dolibarr -> CalDAV (le mapping est supprimé avant le trigger).
 		$this->applyDatabaseFixes();
 
 		return $this->_init($sql, $options);
@@ -274,6 +272,8 @@ class modCalDAvClient extends DolibarrModules
 		include_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
 
 		// Base déjà créée avant cette version : CREATE TABLE IF NOT EXISTS ne rajoute pas les colonnes.
+		require_once DOL_DOCUMENT_ROOT.'/custom/caldavclient/lib/caldavclient.lib.php';
+		caldavclient_ensure_connection_ssl_column($this->db);
 		$this->ensureCalDAVCalendarsSchema();
 		$this->removeEventMappingActioncommForeignKey();
 		$this->ensureEventMappingMultiCalendarIndex();

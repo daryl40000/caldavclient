@@ -1,10 +1,10 @@
-# Index de la Documentation - Module CalDAV Client v0.20.0
+# Index de la Documentation - Module CalDAV Client v0.21.0
 
 Bienvenue dans la documentation complète du module CalDAV Client pour Dolibarr.
 
 > **Licence** : [GNU GPL v3 ou ultérieure](https://www.gnu.org/licenses/gpl-3.0.html) (SPDX `GPL-3.0-or-later`) — fichiers `LICENSE` et `COPYING` à la racine du module.
 
-> **Version actuelle** : voir le fichier `VERSION` et `CHANGELOG.md` (section **[0.20.0]** : changement de numérotation + améliorations agenda ; **[0.10.11]** : exclusion sync des événements `systemauto` ; **[0.10.10]** : découpage `caldav.lib.php` / `caldavsync.class.php` en traits ; **[0.10.9]** : mentions licence ; **[0.10.8]** : renommage classe vue agenda JS ; **[0.10.7]** : refactor `class/agenda/` ; **[0.10.6]** : week-end vue mois ; **[0.10.5]** : grille horaire vue jour ; **[0.10.4]** : couleur des tuiles selon affectation ; **[0.10.3]** / **[0.10.2]** : en-tête vue mois, CSS agenda, légende, etc.).
+> **Version actuelle** : voir le fichier `VERSION` et `CHANGELOG.md` (section **[0.21.0]** : HTTPS obligatoire + vérification SSL par défaut ; **[0.20.0]** : changement de numérotation + améliorations agenda ; **[0.10.11]** : exclusion sync des événements `systemauto` ; **[0.10.10]** : découpage `caldav.lib.php` / `caldavsync.class.php` en traits ; **[0.10.9]** : mentions licence ; **[0.10.8]** : renommage classe vue agenda JS ; **[0.10.7]** : refactor `class/agenda/` ; **[0.10.6]** : week-end vue mois ; **[0.10.5]** : grille horaire vue jour ; **[0.10.4]** : couleur des tuiles selon affectation ; **[0.10.3]** / **[0.10.2]** : en-tête vue mois, CSS agenda, légende, etc.).
 
 ## 📚 Documentation disponible
 

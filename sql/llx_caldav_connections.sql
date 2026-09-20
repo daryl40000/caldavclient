@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS llx_caldav_connections (
     color varchar(7) DEFAULT 'BECEDD' COMMENT 'Couleur d''affichage (hex)',
     enabled tinyint(1) DEFAULT 1 COMMENT 'Actif (1) ou inactif (0)',
     active_by_default tinyint(1) DEFAULT 1 COMMENT 'Actif par défaut dans l''agenda',
+    ssl_verify tinyint(1) NOT NULL DEFAULT 1 COMMENT '1=vérifier le certificat SSL, 0=désactiver (serveur de test)',
     entity integer DEFAULT 1 COMMENT 'Entité Dolibarr',
     date_creation datetime NOT NULL,
     tms timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

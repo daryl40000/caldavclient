@@ -46,3 +46,52 @@ function caldavclient_admin_prepare_head()
 
 	return $head;
 }
+
+/**
+ * Ajoute la colonne ssl_verify sur les connexions si elle manque
+ * (mise à jour depuis une version antérieure à 0.21.0).
+ *
+ * @param  DoliDB $db Gestionnaire de base de données
+ * @return void
+ */
+function caldavclient_ensure_connection_ssl_column($db)
+{
+	if (empty($db) || !is_object($db)) {
+		return;
+	}
+
+	$table = MAIN_DB_PREFIX.'caldav_connections';
+
+	$sql = "SELECT COUNT(*) as nb FROM information_schema.TABLES";
+	$sql .= " WHERE TABLE_SCHEMA = DATABASE()";
+	$sql .= " AND TABLE_NAME = '".$db->escape($table)."'";
+	$resql = $db->query($sql);
+	if (!$resql) {
+		return;
+	}
+	$obj = $db->fetch_object($resql);
+	if (!$obj || (int) $obj->nb === 0) {
+		return;
+	}
+
+	$sql = "SELECT COUNT(*) as nb FROM information_schema.COLUMNS";
+	$sql .= " WHERE TABLE_SCHEMA = DATABASE()";
+	$sql .= " AND TABLE_NAME = '".$db->escape($table)."'";
+	$sql .= " AND COLUMN_NAME = 'ssl_verify'";
+	$resql = $db->query($sql);
+	if (!$resql) {
+		return;
+	}
+	$obj = $db->fetch_object($resql);
+	if ($obj && (int) $obj->nb > 0) {
+		return;
+	}
+
+	$sql = "ALTER TABLE ".$table." ADD COLUMN ssl_verify TINYINT(1) NOT NULL DEFAULT 1";
+	$sql .= " COMMENT '1=vérifier le certificat SSL, 0=désactiver (serveur de test)' AFTER active_by_default";
+	if ($db->query($sql)) {
+		dol_syslog("CalDAVClient: colonne ssl_verify ajoutée sur ".$table, LOG_INFO);
+	} else {
+		dol_syslog("CalDAVClient: échec ADD ssl_verify (".$db->lasterror().")", LOG_ERR);
+	}
+}

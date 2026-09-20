@@ -63,6 +63,11 @@ class CalDAVClient
 	private $calendar_path;
 
 	/**
+	 * @var bool Vérifier le certificat SSL du serveur (false = serveur de test uniquement)
+	 */
+	private $ssl_verify = true;
+
+	/**
 	 * @var resource Contexte de flux pour les requêtes HTTP
 	 */
 	private $context;
@@ -78,7 +83,9 @@ class CalDAVClient
 		$this->username = $connection->username;
 		$this->password = $connection->password;
 		$this->calendar_path = $connection->calendar_path ? $connection->calendar_path : '/remote.php/dav/calendars/'.$connection->username.'/';
-		
+		// Par défaut on vérifie le certificat (protège contre une attaque « homme du milieu »).
+		$this->ssl_verify = (!isset($connection->ssl_verify) || (int) $connection->ssl_verify) ? true : false;
+
 		// Configuration du contexte HTTP avec authentification
 		$auth = base64_encode($this->username.':'.$this->password);
 		$opts = array(
@@ -90,6 +97,10 @@ class CalDAVClient
 					'Depth: 1'
 				),
 				'timeout' => 30
+			),
+			'ssl' => array(
+				'verify_peer' => $this->ssl_verify,
+				'verify_peer_name' => $this->ssl_verify
 			)
 		);
 		$this->context = stream_context_create($opts);

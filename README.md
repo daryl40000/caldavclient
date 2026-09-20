@@ -1,6 +1,6 @@
 # Module CalDAV Client pour Dolibarr
 
-![Version](https://img.shields.io/badge/version-0.20.0-blue.svg)
+![Version](https://img.shields.io/badge/version-0.21.0-blue.svg)
 ![License](https://img.shields.io/badge/license-GPL--3.0%2B-green.svg)
 ![Dolibarr](https://img.shields.io/badge/Dolibarr-16.0%2B-orange.svg)
 
@@ -8,6 +8,8 @@ Module permettant à Dolibarr de **synchroniser** avec des calendriers externes 
 
 ## 📋 Table des matières
 
+- [Nouveautés v0.21.0](#-nouveautés-v0210)
+- [Nouveautés v0.20.0](#-nouveautés-v0200)
 - [Nouveautés v0.10.11](#-nouveautés-v01011)
 - [Nouveautés v0.10.10](#-nouveautés-v01010)
 - [Nouveautés v0.10.9](#-nouveautés-v0109)
@@ -28,6 +30,17 @@ Module permettant à Dolibarr de **synchroniser** avec des calendriers externes 
 - [Dépannage](#-dépannage)
 - [Développement](#-développement)
 - [Licence](#-licence)
+
+## 🆕 Nouveautés v0.21.0
+
+### Sécurité des connexions CalDAV
+
+- L’URL du serveur **doit être en `https://`** (HTTP est refusé).
+- Le **certificat SSL est vérifié** par défaut (évite qu’un imposteur sur le réseau récupère le mot de passe).
+- Dans **CalDAV Client > Configuration**, option **« Vérifier le certificat SSL »** : passez à **Non** uniquement pour un serveur de test avec certificat auto-signé.
+- Après mise à jour : **désactiver puis réactiver** le module une fois.
+
+---
 
 ## 🆕 Nouveautés v0.20.0
 
@@ -502,8 +515,9 @@ rm -rf /var/www/html/documents/caldavclient/cache/*
 ### Problème : "Erreur de connexion SSL"
 
 **Solutions** :
-1. Vérifier que le certificat SSL du serveur est valide
-2. Pour les certificats auto-signés, configurer PHP pour les accepter (déconseillé en production)
+1. Vérifier que l'URL commence bien par **https://**
+2. Vérifier que le certificat SSL du serveur est valide (Let's Encrypt, etc.)
+3. Pour un **certificat auto-signé** (machine de test uniquement) : dans la connexion CalDAV, mettre **Vérifier le certificat SSL** sur **Non**. Ne pas faire cela en production.
 
 ### Problème : "Les couleurs ne s'affichent pas correctement"
 
@@ -526,7 +540,7 @@ rm -rf /var/www/html/documents/caldavclient/cache/*
 | "Connection refused" | Serveur CalDAV inaccessible | Vérifier l'URL et le pare-feu |
 | "Unauthorized 401" | Identifiants incorrects | Vérifier nom d'utilisateur et mot de passe |
 | "Method not allowed 405" | Chemin incorrect | Laisser le chemin vide pour auto-détection |
-| "SSL certificate problem" | Certificat SSL invalide | Utiliser un certificat valide |
+| "SSL certificate problem" | Certificat SSL invalide | Corriger le certificat, ou désactiver la vérification SSL **uniquement** sur un serveur de test |
 
 ## 👨‍💻 Développement
 

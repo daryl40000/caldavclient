@@ -47,6 +47,9 @@ if (!$user->admin && !$user->hasRight('caldavclient', 'read')) {
 // Charger les fichiers de traduction
 $langs->loadLangs(array('caldavclient@caldavclient', 'admin', 'other'));
 
+// Colonne ssl_verify (installations déjà en place avant 0.21.0)
+caldavclient_ensure_connection_ssl_column($db);
+
 // Actions
 $action = GETPOST('action', 'alpha');
 $id = GETPOSTINT('id');
@@ -75,6 +78,8 @@ if ($action == 'add' || $action == 'edit') {
 	$connection->color = GETPOST('color', 'alpha');
 	$connection->enabled = GETPOSTINT('enabled');
 	$connection->active_by_default = GETPOSTINT('active_by_default');
+	// Si le champ n'est pas dans le formulaire, on garde la vérification SSL (plus sûr).
+	$connection->ssl_verify = GETPOSTISSET('ssl_verify') ? GETPOSTINT('ssl_verify') : 1;
 	
 	// Validation
 	$error = 0;
@@ -84,6 +89,9 @@ if ($action == 'add' || $action == 'edit') {
 	}
 	if (empty($connection->url)) {
 		setEventMessages($langs->trans("ErrorFieldRequired", $langs->trans("URL")), null, 'errors');
+		$error++;
+	} elseif (!CalDAVConnection::isHttpsUrl($connection->url)) {
+		setEventMessages($langs->trans("ErrorCalDAVUrlMustBeHttps"), null, 'errors');
 		$error++;
 	}
 	if (empty($connection->username)) {
@@ -180,6 +188,9 @@ if ($action == 'add' || $action == 'edit') {
 				setEventMessages($langs->trans("CalendarsDiscovered", $saved, $updated), null, 'mesgs');
 			} else {
 				$error_msg = $langs->trans("NoCalendarsFound");
+				if (!empty($client->last_response['error'])) {
+					$error_msg .= "<br>".dol_escape_htmltag($client->last_response['error']);
+				}
 				$error_msg .= "<br>".$langs->trans("NoCalendarsFoundHelp");
 				$error_msg .= "<br>".$langs->trans("CheckLogsForDetails");
 				setEventMessages($error_msg, null, 'warnings');
@@ -380,10 +391,13 @@ if ($action == 'create' || ($action == 'edit' && $id > 0)) {
 	print '<td><input type="text" name="name" value="'.dol_escape_htmltag($connection->name).'" class="minwidth200"></td>';
 	print '</tr>';
 	
-	// URL
+	// URL (HTTPS obligatoire : le mot de passe voyage dans les requêtes)
 	print '<tr class="oddeven">';
 	print '<td class="fieldrequired">'.$langs->trans("URL").'</td>';
-	print '<td><input type="url" name="url" value="'.dol_escape_htmltag($connection->url).'" class="minwidth300" placeholder="https://nextcloud.example.com"></td>';
+	print '<td>';
+	print '<input type="url" name="url" value="'.dol_escape_htmltag($connection->url).'" class="minwidth300" placeholder="https://nextcloud.example.com" required>';
+	print '<br><span class="opacitymedium">'.$langs->trans("CalDAVUrlHttpsHelp").'</span>';
+	print '</td>';
 	print '</tr>';
 	
 	// Nom d'utilisateur
@@ -426,6 +440,16 @@ if ($action == 'create' || ($action == 'edit' && $id > 0)) {
 	print '<td>'.$langs->trans("ActiveByDefault").'</td>';
 	print '<td>';
 	print $form->selectyesno("active_by_default", $connection->active_by_default, 1);
+	print '</td>';
+	print '</tr>';
+
+	// Vérification SSL (Oui par défaut). Non = certificat auto-signé / machine de test.
+	$ssl_verify_form = isset($connection->ssl_verify) ? (int) $connection->ssl_verify : 1;
+	print '<tr class="oddeven">';
+	print '<td>'.$langs->trans("CalDAVSslVerify").'</td>';
+	print '<td>';
+	print $form->selectyesno("ssl_verify", $ssl_verify_form, 1);
+	print '<br><span class="opacitymedium">'.$langs->trans("CalDAVSslVerifyHelp").'</span>';
 	print '</td>';
 	print '</tr>';
 	

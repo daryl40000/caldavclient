@@ -41,6 +41,18 @@ trait CalDAVClientHttpTrait
 			// Sinon, construire l'URL en combinant l'URL de base et le chemin
 			$url = rtrim($this->url, '/').'/'.ltrim($path, '/');
 		}
+
+		// Le mot de passe CalDAV voyage dans la requête : HTTP (sans chiffrement) est refusé.
+		$https_error = $this->rejectIfNotHttps($url);
+		if ($https_error !== '') {
+			$res = array('code' => 0, 'body' => '', 'error' => $https_error);
+			$this->last_response = array_merge(array('method' => $method, 'url' => $url), $res);
+			return $res;
+		}
+
+		if (!$this->ssl_verify) {
+			dol_syslog("CalDAV: vérification SSL désactivée pour cette connexion (réservé aux tests)", LOG_WARNING);
+		}
 		
 		dol_syslog("CalDAV request: Méthode=".$method.", URL=".$url, LOG_DEBUG);
 		
@@ -92,8 +104,10 @@ trait CalDAVClientHttpTrait
 			CURLOPT_HTTPHEADER => $all_headers,
 			CURLOPT_TIMEOUT => 30,
 			CURLOPT_CONNECTTIMEOUT => 10,
-			CURLOPT_SSL_VERIFYPEER => false, // Désactiver la vérification SSL pour les tests (à activer en production)
-			CURLOPT_SSL_VERIFYHOST => false,
+			// Vérification du certificat par défaut (true / 2).
+			// Si ssl_verify est faux : certificat auto-signé accepté, moins sûr.
+			CURLOPT_SSL_VERIFYPEER => $this->ssl_verify ? true : false,
+			CURLOPT_SSL_VERIFYHOST => $this->ssl_verify ? 2 : 0,
 			CURLOPT_USERPWD => $this->username.':'.$this->password,
 			CURLOPT_HTTPAUTH => CURLAUTH_BASIC,
 			CURLOPT_VERBOSE => false,
@@ -113,6 +127,9 @@ trait CalDAVClientHttpTrait
 		
 		if ($error) {
 			dol_syslog("CalDAV cURL Error: ".$error, LOG_WARNING);
+			if (stripos($error, 'SSL') !== false || stripos($error, 'certificate') !== false) {
+				$error = "Certificat SSL invalide ou non vérifiable. Utilisez une URL https:// avec un certificat valide, ou désactivez temporairement la vérification SSL sur cette connexion (serveur de test uniquement). Détail : ".$error;
+			}
 			return array('code' => 500, 'body' => '', 'error' => $error, 'info' => $curl_info);
 		}
 		
@@ -161,6 +178,10 @@ trait CalDAVClientHttpTrait
 				'header' => implode("\r\n", $all_headers),
 				'timeout' => 30,
 				'ignore_errors' => true
+			),
+			'ssl' => array(
+				'verify_peer' => !empty($this->ssl_verify),
+				'verify_peer_name' => !empty($this->ssl_verify)
 			)
 		);
 		
@@ -191,5 +212,21 @@ trait CalDAVClientHttpTrait
 			'code' => $code,
 			'body' => $response !== false ? $response : ''
 		);
+	}
+
+	/**
+	 * Refuse une URL qui n'est pas en HTTPS.
+	 *
+	 * @param  string $url URL complète de la requête
+	 * @return string      Message d'erreur, ou chaîne vide si l'URL est acceptable
+	 */
+	private function rejectIfNotHttps($url)
+	{
+		if (preg_match('#^https://#i', (string) $url)) {
+			return '';
+		}
+		$msg = "URL CalDAV refusée : seul HTTPS est autorisé (protection du mot de passe).";
+		dol_syslog("CalDAV: ".$msg." URL=".$url, LOG_ERR);
+		return $msg;
 	}
 }

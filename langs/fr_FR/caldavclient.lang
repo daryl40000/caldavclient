@@ -41,6 +41,10 @@ Cancel=Annuler
 # Messages d'aide
 CalendarPathHelp=Laissez vide pour utiliser le chemin par défaut. Exemple pour Nextcloud: /remote.php/dav/calendars/username/calendarname/
 LeaveEmptyToKeepCurrent=Laissez vide pour conserver le mot de passe actuel
+CalDAVUrlHttpsHelp=L'adresse doit commencer par https:// (connexion chiffrée). HTTP n'est pas accepté.
+CalDAVSslVerify=Vérifier le certificat SSL
+CalDAVSslVerifyHelp=Laissez sur Oui en production. Passez à Non uniquement si le serveur utilise un certificat auto-signé (moins sûr : quelqu'un sur le réseau pourrait intercepter le mot de passe).
+ErrorCalDAVUrlMustBeHttps=L'URL du serveur CalDAV doit commencer par https://
 
 # Événements
 CalDAVEvent=Événement CalDAV

@@ -9,6 +9,16 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 **Licence du dépôt** : [GNU General Public License](https://www.gnu.org/licenses/gpl-3.0.html) **version 3 ou toute version ultérieure** (SPDX : `GPL-3.0-or-later`). Textes `LICENSE` et `COPYING` à la racine du module.
 
+## [0.21.0] - 2026-09-20
+
+### Sécurité
+- **Vérification SSL activée par défaut** lors des appels au serveur CalDAV (`CURLOPT_SSL_VERIFYPEER` / `CURLOPT_SSL_VERIFYHOST`, et équivalent pour le plan B `file_get_contents`). Protège le mot de passe contre une interception (attaque « homme du milieu »).
+- **URL HTTPS obligatoire** pour la connexion CalDAV (`http://` est refusé à l’enregistrement et au moment de la requête).
+- **Option par connexion** « Vérifier le certificat SSL » (Oui par défaut). Non = certificat auto-signé, réservé aux tests. Après mise à jour : désactiver puis réactiver le module une fois (ajoute la colonne `ssl_verify`).
+
+### Documentation (fichiers de version)
+- **`VERSION`**, descripteur module, trigger, **`admin/about.php`**, **`README.md`**, **`DOCUMENTATION_INDEX.md`** : **0.21.0**.
+
 ## [0.20.0] - 2026-03-30
 
 ### Modifié
