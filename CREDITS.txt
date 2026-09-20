@@ -1,0 +1,25 @@
+Module CalDAV Client pour Dolibarr
+Version 0.8.0
+
+AUTEUR PRINCIPAL
+================
+MATER Stéphane
+Développement initial et maintenance (2025-2026)
+
+LICENCE
+=======
+Ce module est distribué sous GNU General Public License version 3 ou toute
+version ultérieure (GPL-3.0-or-later, SPDX). Voir les fichiers LICENSE et
+COPYING à la racine du module.
+Copyright (C) 2025-2026 MATER Stéphane
+
+REMERCIEMENTS
+=============
+- Équipe Dolibarr pour le framework
+- Communauté CalDAV pour les spécifications RFC 4791
+- Tous les utilisateurs et contributeurs
+
+CONTACT
+=======
+Email: stephane@example.com
+Documentation: README.md

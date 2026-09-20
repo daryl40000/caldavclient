@@ -1,0 +1,647 @@
+/**
+ * CalDAV Client — habillage visuel de l'agenda natif Dolibarr (comm/action/index.php).
+ * Ciblage : grilles .cal_pannel.cal_month et sections .sectioncalendar* uniquement.
+ * Ne modifie pas le HTML du cœur ; surcharge légère des styles existants.
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2025-2026 MATER Stéphane
+ * Licence : GNU General Public License version 3 ou toute version ultérieure.
+ * Voir les fichiers LICENSE et COPYING à la racine du module.
+ */
+
+/* -------------------------------------------------------------------------
+   Filtre « Affecté à » (utilisateurs) : masqué sur le calendrier index uniquement
+   Le combo / widget multiselect est redondant avec le filtrage par défaut et prête
+   à confusion. On ne touche pas à list.php ni peruser/pertype (:has(.sectioncalendar*)).
+   Le champ reste dans le DOM : la valeur POSTée (ex. utilisateur courant) est inchangée.
+   ------------------------------------------------------------------------- */
+form#searchFormList.listactionsfilter:has(.sectioncalendarbymonth) .divsearchfield:has(select#search_filtert),
+form#searchFormList.listactionsfilter:has(.sectioncalendarbyweek) .divsearchfield:has(select#search_filtert),
+form#searchFormList.listactionsfilter:has(.sectioncalendarbyday) .divsearchfield:has(select#search_filtert) {
+	display: none !important;
+}
+
+/* -------------------------------------------------------------------------
+   Conteneur : aspect « carte » autour du tableau
+   ------------------------------------------------------------------------- */
+.sectioncalendarbymonth.maxscreenheightless300,
+.sectioncalendarbyweek.maxscreenheightless300,
+.sectioncalendarbyday.maxscreenheightless300 {
+	background: #f1f5f9;
+	border-radius: 16px;
+	padding: 14px;
+	margin-bottom: 1rem;
+	box-shadow:
+		0 1px 3px rgba(15, 23, 42, 0.06),
+		0 8px 32px rgba(15, 23, 42, 0.06);
+	border: 1px solid rgba(148, 163, 184, 0.45);
+}
+
+/* Vue mois : barre de défilement verticale dans l’encadré (max-height Dolibarr) pour que scrollIntoView
+   centre le jour actuel dans cette zone, et non seulement en bas de page.
+   Pas de padding-haut : sinon une bande au-dessus du tableau laisse voir les tuiles qui défilent ;
+   la ligne des jours doit être collée au bord haut intérieur de la zone scroll. */
+.sectioncalendarbymonth.maxscreenheightless300 {
+	overflow-y: auto;
+	padding-top: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Vue mois : ligne d’en-tête (jours) pleine — pas d’interstices ni de transparence
+   sous laquelle les tuiles ne défilent. Le thème utilisait border-spacing + dégradé :
+   les trous entre colonnes laissaient voir les cellules ; opacity sur la col. # aussi.
+   Ici : espacement 0 + « gouttières » via bordure (couleur = fond de l’encadré).
+   ------------------------------------------------------------------------- */
+.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month {
+	border-spacing: 0 !important;
+	background: #f1f5f9 !important;
+	margin: 0 !important;
+}
+
+/* Le thème met sticky sur <tr> : avec sticky sur les <td>, il faut tr en static sinon le repère de collage est faux. */
+.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month tr.liste_titre.sticky {
+	position: static !important;
+}
+
+/* Sticky sur chaque cellule d’en-tête : plus fiable que tr seul ; bloque les tuiles jusqu’au bord haut du scroll. */
+.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month tr.liste_titre.sticky td {
+	position: sticky !important;
+	top: 0 !important;
+	z-index: 25 !important;
+	background: #cbd5e1 !important;
+	background-image: none !important;
+	color: #0f172a !important;
+	font-weight: 700 !important;
+	font-size: 0.72rem !important;
+	letter-spacing: 0.06em !important;
+	text-transform: uppercase;
+	border: none !important;
+	border-radius: 0 !important;
+	border-bottom: 2px solid #94a3b8 !important;
+	padding: 12px 8px !important;
+	opacity: 1 !important;
+	box-shadow: 0 4px 8px rgba(15, 23, 42, 0.1) !important;
+	background-clip: padding-box !important;
+	-webkit-backface-visibility: hidden;
+	backface-visibility: hidden;
+}
+
+.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month tr.liste_titre.sticky td:first-child {
+	border-top-left-radius: 14px;
+}
+
+.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month tr.liste_titre.sticky td:last-child {
+	border-top-right-radius: 14px;
+}
+
+/* Vue mois : samedi + dimanche — barre des jours en couleur distincte (classes posées par JS module). */
+.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month tr.liste_titre.sticky td.caldavclient-weekend-header,
+.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month tr.liste_titre.sticky td.caldavclient-weekend-merged {
+	background: #ddd6fe !important;
+	background-image: none !important;
+	color: #5b21b6 !important;
+	border-bottom: 2px solid #a78bfa !important;
+	box-shadow: 0 3px 10px rgba(91, 33, 182, 0.14) !important;
+}
+
+/* Cases jour week-end : fond léger (fusion = une seule cellule colspan 2) */
+.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month td.tdtop.caldavclient-weekend-cell {
+	background: #faf5ff !important;
+}
+
+.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month td.tdtop.caldavclient-weekend-cell.cal_today {
+	background: linear-gradient(145deg, #f5f3ff 0%, #ede9fe 100%) !important;
+	border-color: rgba(139, 92, 246, 0.5) !important;
+	box-shadow:
+		0 0 0 2px rgba(139, 92, 246, 0.18),
+		0 4px 14px rgba(91, 33, 182, 0.1) !important;
+}
+
+.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month td.tdtop.caldavclient-weekend-cell.cal_other_month {
+	background: #f3e8ff !important;
+}
+
+.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month tr.liste_titre td.weeknumber,
+.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month tr.liste_titre td.center:first-child {
+	opacity: 1 !important;
+	min-width: 2.25rem;
+}
+
+/* Gouttière entre jours : bordure uniquement (sans padding supplémentaire sur le contenu) */
+.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month td.tdtop {
+	border: 4px solid #f1f5f9 !important;
+	box-sizing: border-box !important;
+}
+
+/* -------------------------------------------------------------------------
+   Tableau principal : espacement entre cellules (effet tuiles)
+   ------------------------------------------------------------------------- */
+.cal_pannel.cal_month {
+	border-collapse: separate !important;
+	border-spacing: 8px !important;
+	background: transparent !important;
+}
+
+/* En-tête des jours (et # semaine en vue mois) — semaine / jour : inchangé ; mois surchargé plus haut */
+.cal_pannel.cal_month tr.liste_titre td {
+	background: linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%) !important;
+	color: #0f172a !important;
+	font-weight: 700 !important;
+	font-size: 0.72rem !important;
+	letter-spacing: 0.06em !important;
+	text-transform: uppercase;
+	border: none !important;
+	border-radius: 10px !important;
+	padding: 12px 8px !important;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.cal_pannel.cal_month tr.liste_titre td.weeknumber,
+.cal_pannel.cal_month tr.liste_titre td.center:first-child {
+	opacity: 0.85;
+	min-width: 2.25rem;
+}
+
+/* -------------------------------------------------------------------------
+   Cellules jour
+   ------------------------------------------------------------------------- */
+/* Pas de padding horizontal sur la case jour : sinon les tuiles événement ne peuvent pas aller
+   bord à bord (le thème Eldy ajoute aussi margin-left sur .dayevent-aday). Le décalage est
+   reporté sur la première ligne (numéro du jour + icône). */
+.cal_pannel.cal_month td.tdtop {
+	vertical-align: top !important;
+	min-height: 104px;
+	padding: 10px 0 !important;
+	border-radius: 12px !important;
+	background: #ffffff !important;
+	border: 1px solid rgba(148, 163, 184, 0.35) !important;
+	box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+	transition:
+		box-shadow 0.2s ease,
+		border-color 0.2s ease,
+		transform 0.15s ease;
+}
+
+.cal_pannel.cal_month td.cal_today {
+	background: linear-gradient(145deg, #eff6ff 0%, #e0e7ff 100%) !important;
+	border-color: rgba(59, 130, 246, 0.55) !important;
+	box-shadow:
+		0 0 0 2px rgba(59, 130, 246, 0.2),
+		0 4px 14px rgba(59, 130, 246, 0.12);
+}
+
+.cal_pannel.cal_month td.cal_past:not(.cal_other_month) {
+	opacity: 0.92;
+}
+
+.cal_pannel.cal_month td.cal_other_month {
+	background: #f8fafc !important;
+	border-style: dashed !important;
+	border-color: rgba(148, 163, 184, 0.35) !important;
+	opacity: 0.78;
+}
+
+.cal_pannel.cal_month td.tdtop:hover {
+	box-shadow: 0 4px 18px rgba(15, 23, 42, 0.08);
+	border-color: rgba(100, 116, 139, 0.55);
+}
+
+/* Ligne du jour : marge latérale sur la rangée (voir flex plus bas) */
+
+/* Thème Eldy : a.dayevent-aday { margin-left: 8px } — annulé pour aligner avec le padding ci-dessus */
+.cal_pannel.cal_month a.dayevent-aday {
+	margin-left: 0 !important;
+	margin-right: 0 !important;
+}
+
+/* Numéro du jour en tête de cellule */
+.cal_pannel.cal_month .dayevent-aday {
+	font-weight: 700 !important;
+	font-size: 0.95rem !important;
+	color: #334155 !important;
+	border-radius: 8px;
+	padding: 2px 6px;
+	transition: background 0.15s ease;
+}
+
+.cal_pannel.cal_month td.cal_today .dayevent-aday {
+	color: #1d4ed8 !important;
+	background: rgba(255, 255, 255, 0.65);
+}
+
+/* -------------------------------------------------------------------------
+   Zone des événements dans la cellule
+   Dolibarr : .dayevent.tagtable est un display:table ; la 1re ligne a souvent
+   DEUX .tagtd (jour + icône +), la 2e une seule .agendacell — en mode table,
+   cette cellule ne couvre que la 1re colonne → tuiles étroites. On repasse en
+   block/flex pour que la ligne des événements fasse toute la largeur.
+   ------------------------------------------------------------------------- */
+.cal_pannel.cal_month td.tdtop .dayevent.tagtable {
+	display: block !important;
+	width: 100% !important;
+	max-width: 100% !important;
+	box-sizing: border-box;
+}
+
+.cal_pannel.cal_month .dayevent.tagtable > .tagtr:first-of-type {
+	display: flex !important;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	justify-content: space-between;
+	align-items: center;
+	width: 100% !important;
+	padding-left: 8px !important;
+	padding-right: 8px !important;
+	box-sizing: border-box;
+}
+
+.cal_pannel.cal_month .dayevent.tagtable > .tagtr:first-of-type > .tagtd {
+	display: block !important;
+	width: auto !important;
+	flex: 0 1 auto;
+}
+
+.cal_pannel.cal_month .dayevent.tagtable > .tagtr:not(:first-of-type) {
+	display: block !important;
+	width: 100% !important;
+	box-sizing: border-box;
+}
+
+.cal_pannel.cal_month .dayevent.tagtable > .tagtr:not(:first-of-type) > .tagtd {
+	display: block !important;
+	width: 100% !important;
+	max-width: 100% !important;
+	box-sizing: border-box;
+}
+
+.cal_pannel.cal_month td.tdtop .dayevent .tagtd.centpercent {
+	width: 100% !important;
+	max-width: 100% !important;
+}
+
+/* Thème Eldy : .agendacell { height: 60px } — empile tous les événements dans ~60px → un seul visible */
+.cal_pannel.cal_month .agendacell,
+.cal_pannel.cal_month .agendacell.sortable {
+	height: auto !important;
+	max-height: none !important;
+	min-height: 0 !important;
+	padding-top: 6px;
+	width: 100% !important;
+	max-width: 100% !important;
+	box-sizing: border-box;
+}
+
+/* Thème Dolibarr : div.event en flow block + pleine largeur de la zone utile */
+.cal_pannel.cal_month div.event {
+	display: block !important;
+	margin-left: 0 !important;
+	margin-right: 0 !important;
+	margin-top: 4px !important;
+	margin-bottom: 10px !important;
+	width: 100% !important;
+	max-width: none !important;
+	box-sizing: border-box;
+}
+
+.cal_pannel.cal_month div.event:last-child {
+	margin-bottom: 0 !important;
+}
+
+/* Tuile événement : fond uni (plus le gris #f0f0f0 natif), arrondi + ombre.
+   Le !important permet d’écraser le style inline Dolibarr sur le <table>. */
+.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month table.cal_event,
+.sectioncalendarbyweek.maxscreenheightless300 .cal_pannel.cal_month table.cal_event,
+.sectioncalendarbyday.maxscreenheightless300 .cal_pannel.cal_month table.cal_event {
+	background: #eef2f7 !important;
+	background-color: #eef2f7 !important;
+}
+
+.cal_pannel.cal_month table.cal_event {
+	width: 100% !important;
+	max-width: 100% !important;
+	box-sizing: border-box;
+	border-radius: 10px !important;
+	overflow: hidden;
+	box-shadow:
+		0 2px 8px rgba(15, 23, 42, 0.07),
+		0 1px 2px rgba(15, 23, 42, 0.04) !important;
+	border: none !important;
+	transition:
+		box-shadow 0.2s ease,
+		transform 0.15s ease,
+		background-color 0.2s ease;
+}
+
+.cal_pannel.cal_month table.cal_event:hover {
+	box-shadow:
+		0 6px 20px rgba(15, 23, 42, 0.1),
+		0 2px 6px rgba(15, 23, 42, 0.06) !important;
+	transform: translateY(-1px);
+}
+
+/* Le contenu de la tuile reste sur le fond du tableau (pas de bande grise sur les <td>) */
+.cal_pannel.cal_month table.cal_event td.cal_event {
+	padding: 8px 10px !important;
+	vertical-align: middle;
+	background: transparent !important;
+	background-color: transparent !important;
+}
+
+/* 2e colonne : statut / pourcentage (cercle getLibStatut(3) natif Dolibarr) — non utilisé ici */
+.cal_pannel.cal_month table.cal_event td.cal_event_right {
+	display: none !important;
+}
+
+.cal_pannel.cal_month .cal_event_title a {
+	font-weight: 600;
+	line-height: 1.35;
+}
+
+/* -------------------------------------------------------------------------
+   Barre de vues (mois / semaine / jour / liste) — léger adoucissement
+   ------------------------------------------------------------------------- */
+form.listactionsfilter#searchFormList .navmode .btnTitle {
+	border-radius: 10px !important;
+	margin-right: 4px;
+	transition:
+		background 0.15s ease,
+		box-shadow 0.15s ease;
+}
+
+form.listactionsfilter#searchFormList .navmode .btnTitleSelected {
+	box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+}
+
+/* Légende calendriers (cases à cocher) */
+form.listactionsfilter#searchFormList .labelcalendar {
+	border-radius: 6px;
+	padding: 2px 4px;
+}
+
+/* -------------------------------------------------------------------------
+   Vue jour : grille horaire 0h–23h (+ ligne « journée entière »), DOM réorganisé en JS (module)
+   ------------------------------------------------------------------------- */
+.sectioncalendarbyday.maxscreenheightless300 .cal_pannel.cal_month td .dayevent.tagtable {
+	display: block !important;
+	width: 100% !important;
+	max-width: 100% !important;
+	box-sizing: border-box;
+}
+
+.sectioncalendarbyday.maxscreenheightless300 .cal_pannel.cal_month .dayevent.tagtable > .tagtr:first-of-type {
+	display: flex !important;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	justify-content: space-between;
+	align-items: center;
+	width: 100% !important;
+	padding-left: 8px !important;
+	padding-right: 8px !important;
+	box-sizing: border-box;
+}
+
+.sectioncalendarbyday.maxscreenheightless300 .cal_pannel.cal_month .dayevent.tagtable > .tagtr:first-of-type > .tagtd {
+	display: block !important;
+	width: auto !important;
+	flex: 0 1 auto;
+}
+
+.sectioncalendarbyday.maxscreenheightless300 .cal_pannel.cal_month .dayevent.tagtable > .tagtr:not(:first-of-type) {
+	display: block !important;
+	width: 100% !important;
+	box-sizing: border-box;
+}
+
+.sectioncalendarbyday.maxscreenheightless300 .cal_pannel.cal_month .dayevent.tagtable > .tagtr:not(:first-of-type) > .tagtd {
+	display: block !important;
+	width: 100% !important;
+	max-width: 100% !important;
+	box-sizing: border-box;
+}
+
+.sectioncalendarbyday.maxscreenheightless300 .cal_pannel.cal_month .agendacell,
+.sectioncalendarbyday.maxscreenheightless300 .cal_pannel.cal_month .agendacell.sortable {
+	height: auto !important;
+	max-height: none !important;
+	min-height: 0 !important;
+	width: 100% !important;
+	max-width: 100% !important;
+	box-sizing: border-box;
+	padding-top: 6px;
+}
+
+.sectioncalendarbyday.maxscreenheightless300 table.caldavclient-daygrid {
+	border-collapse: collapse;
+	width: 100%;
+	table-layout: fixed;
+	margin: 0 0 10px 0;
+	background: #ffffff;
+	border-radius: 12px;
+	overflow: hidden;
+	border: 1px solid rgba(148, 163, 184, 0.4);
+	box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+.sectioncalendarbyday.maxscreenheightless300 table.caldavclient-daygrid th.caldavclient-daygrid-hour {
+	width: 4.5rem;
+	padding: 8px 10px 8px 12px;
+	text-align: right;
+	font-size: 0.75rem;
+	font-weight: 600;
+	color: #64748b;
+	text-transform: none;
+	letter-spacing: 0.02em;
+	vertical-align: top;
+	background: #f8fafc;
+	border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+	border-right: 1px solid rgba(148, 163, 184, 0.35);
+	box-sizing: border-box;
+}
+
+.sectioncalendarbyday.maxscreenheightless300 table.caldavclient-daygrid td.caldavclient-daygrid-slot {
+	vertical-align: top;
+	min-height: 48px;
+	padding: 6px 8px;
+	border-bottom: 1px solid rgba(226, 232, 240, 0.95);
+	background: #ffffff;
+	box-sizing: border-box;
+	position: relative; /* ancrage pour les événements positionnés */
+	overflow: visible; /* permet à un événement de déborder sur les heures suivantes */
+}
+
+.sectioncalendarbyday.maxscreenheightless300 table.caldavclient-daygrid tr.caldavclient-daygrid-allday td.caldavclient-daygrid-slot-allday {
+	min-height: 40px;
+	background: #f1f5f9;
+}
+
+.sectioncalendarbyday.maxscreenheightless300 table.caldavclient-daygrid tr:last-child th,
+.sectioncalendarbyday.maxscreenheightless300 table.caldavclient-daygrid tr:last-child td {
+	border-bottom: none;
+}
+
+.sectioncalendarbyday.maxscreenheightless300 table.caldavclient-daygrid td.caldavclient-daygrid-slot div.event {
+	display: block !important;
+	margin-left: 0 !important;
+	margin-right: 0 !important;
+	margin-top: 6px !important;
+	margin-bottom: 8px !important;
+	width: 100% !important;
+	max-width: none !important;
+	box-sizing: border-box;
+}
+
+/* Événements placés "à cheval" sur les heures (position absolute dans le slot de départ) */
+.sectioncalendarbyday.maxscreenheightless300 table.caldavclient-daygrid td.caldavclient-daygrid-slot div.event.caldavclient-daygrid-abs-event {
+	margin: 0 !important;
+	z-index: 5;
+}
+
+.sectioncalendarbyday.maxscreenheightless300 table.caldavclient-daygrid td.caldavclient-daygrid-slot div.event:first-child {
+	margin-top: 0 !important;
+}
+
+/* -------------------------------------------------------------------------
+   Préférence utilisateur : thème sombre (si le navigateur / OS est en dark)
+   ------------------------------------------------------------------------- */
+@media (prefers-color-scheme: dark) {
+	.sectioncalendarbymonth.maxscreenheightless300,
+	.sectioncalendarbyweek.maxscreenheightless300,
+	.sectioncalendarbyday.maxscreenheightless300 {
+		background: #1e293b;
+		border-color: rgba(148, 163, 184, 0.25);
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+	}
+
+	/* Vue mois : fond plus sombre pour les espaces (gouttières) entre cases */
+	.sectioncalendarbymonth.maxscreenheightless300 {
+		background: #0f172a !important;
+		background-color: #0f172a !important;
+	}
+
+	.cal_pannel.cal_month tr.liste_titre td {
+		background: linear-gradient(180deg, #334155 0%, #1e293b 100%) !important;
+		color: #f1f5f9 !important;
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+	}
+
+	.cal_pannel.cal_month td.tdtop {
+		/* Fond des cases "jour" : éclairci (le #0f172a était trop sombre) */
+		background: #3a404a !important; /* gris plus clair (moins bleuté) */
+		border-color: rgba(71, 85, 105, 0.6) !important;
+	}
+
+	.cal_pannel.cal_month td.cal_today {
+		/* Aujourd'hui : accent bleu harmonieux sur fond gris */
+		background: linear-gradient(145deg, #2f4a6a 0%, #283f5a 100%) !important;
+		border-color: rgba(96, 165, 250, 0.75) !important; /* #60a5fa */
+	}
+
+	.cal_pannel.cal_month td.cal_other_month {
+		background: #1e293b !important;
+		opacity: 0.65;
+	}
+
+	.cal_pannel.cal_month .dayevent-aday {
+		color: #e2e8f0 !important;
+	}
+
+	.cal_pannel.cal_month td.cal_today .dayevent-aday {
+		color: #93c5fd !important;
+		background: rgba(15, 23, 42, 0.5);
+	}
+
+	/* Même logique vue mois : en-tête opaque, pas d’interstices sous la ligne des jours */
+	.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month {
+		/* Le background du tableau remplit les espaces créés par border-spacing */
+		background: #0f172a !important;
+		background-color: #0f172a !important;
+	}
+
+	.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month tr.liste_titre.sticky td {
+		background: #475569 !important;
+		background-image: none !important;
+		color: #f1f5f9 !important;
+		border-bottom: 2px solid #64748b !important;
+		box-shadow: 0 4px 8px rgba(0, 0, 0, 0.35) !important;
+		opacity: 1 !important;
+	}
+
+	/* Colonne "numéro de semaine" : forcer le même rendu sombre que les jours.
+	   Selon les thèmes Dolibarr, la cellule peut être td.weeknumber ou simplement la 1re colonne. */
+	.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month tr.liste_titre.sticky td.weeknumber,
+	.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month tr.liste_titre.sticky td:first-child {
+		background: #475569 !important;
+		background-image: none !important;
+		color: #f1f5f9 !important;
+		border-bottom: 2px solid #64748b !important;
+		opacity: 1 !important;
+	}
+
+	.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month tr.liste_titre.sticky td.caldavclient-weekend-header,
+	.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month tr.liste_titre.sticky td.caldavclient-weekend-merged {
+		/* Week-end : accent violet doux (en-tête) */
+		background: #4a3f6a !important;
+		color: #ede9fe !important;
+		border-bottom: 2px solid #a78bfa !important;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+	}
+
+	/* Colonne "numéro de semaine" (corps du tableau mois) : elle a souvent son propre fond (blanc).
+	   On l'aligne sur le fond sombre des cellules. */
+	.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month td.weeknumber,
+	.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month td.center:first-child {
+		background: #0f172a !important;
+		color: #94a3b8 !important;
+		border-color: rgba(71, 85, 105, 0.6) !important;
+	}
+
+	.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month td.tdtop.caldavclient-weekend-cell {
+		background: #3a3352 !important;
+		border-color: rgba(167, 139, 250, 0.55) !important; /* #a78bfa */
+	}
+
+	.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month td.tdtop.caldavclient-weekend-cell.cal_today {
+		/* Aujourd'hui tombe sur week-end : un peu plus lumineux */
+		background: linear-gradient(145deg, #433b66 0%, #3a3352 100%) !important;
+		border-color: rgba(167, 139, 250, 0.75) !important;
+	}
+
+	.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month td.tdtop.caldavclient-weekend-cell.cal_other_month {
+		background: #2f2a44 !important;
+		opacity: 0.78;
+	}
+
+	.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month td.tdtop {
+		/* Gouttières (espaces entre jours) : aligner sur la colonne "numéro de semaine" */
+		border: 4px solid #0f172a !important;
+	}
+
+	.sectioncalendarbymonth.maxscreenheightless300 .cal_pannel.cal_month table.cal_event,
+	.sectioncalendarbyweek.maxscreenheightless300 .cal_pannel.cal_month table.cal_event,
+	.sectioncalendarbyday.maxscreenheightless300 .cal_pannel.cal_month table.cal_event {
+		background: #334155 !important;
+		background-color: #334155 !important;
+	}
+
+	.sectioncalendarbyday.maxscreenheightless300 table.caldavclient-daygrid {
+		background: #3a404a; /* gris plus clair (moins bleuté) */
+		border-color: rgba(71, 85, 105, 0.65);
+	}
+
+	.sectioncalendarbyday.maxscreenheightless300 table.caldavclient-daygrid th.caldavclient-daygrid-hour {
+		background: #1e293b;
+		color: #94a3b8;
+		border-bottom-color: rgba(71, 85, 105, 0.8);
+		border-right-color: rgba(71, 85, 105, 0.8);
+	}
+
+	.sectioncalendarbyday.maxscreenheightless300 table.caldavclient-daygrid td.caldavclient-daygrid-slot {
+		/* Cases horaires vue jour : éclaircies pour cohérence avec les cases jour du mois */
+		background: #3a404a; /* gris plus clair (moins bleuté) */
+		border-bottom-color: rgba(51, 65, 85, 0.9);
+	}
+
+	.sectioncalendarbyday.maxscreenheightless300 table.caldavclient-daygrid tr.caldavclient-daygrid-allday td.caldavclient-daygrid-slot-allday {
+		background: #1e293b;
+	}
+}

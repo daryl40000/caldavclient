@@ -1,0 +1,35 @@
+# Fichiers temporaires
+temp/
+*.tmp
+*.log
+
+# Cache
+cache/
+*.cache
+
+# Fichiers de configuration locaux
+config.local.php
+
+# Fichiers de test / debug locaux (à la racine seulement,
+# pour ne pas ignorer admin/test_agenda_natif.php)
+/test_*.php
+/debug_*.php
+
+# Secrets et configuration machine
+.env
+.env.*
+
+# Fichiers IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+
+# Sauvegardes
+*.bak
+*.backup

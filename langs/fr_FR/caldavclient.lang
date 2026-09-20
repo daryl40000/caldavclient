@@ -1,0 +1,159 @@
+# Traductions françaises pour le module CalDAV Client
+
+# Nom et description du module
+ModuleCalDAvClientName=CalDAV Client
+ModuleCalDAvClientDesc=Permet à Dolibarr d'agir comme un client CalDAV pour intégrer des calendriers externes (Nextcloud, etc.) dans l'agenda Dolibarr en lecture et écriture.
+# Licence légale du module (GNU GPL v3 ou ultérieure — SPDX GPL-3.0-or-later)
+ModuleCalDAvClientLicense=GNU General Public License v3 ou ultérieure (GPL-3.0-or-later)
+
+# Configuration
+CalDAVClientSetup=Configuration CalDAV Client
+CalDAVAgendaDisplayOptions=Affichage de l'agenda Dolibarr
+CalDAVHideAgendaSystemAuto=Masquer les événements automatiques système
+CalDAVHideAgendaSystemAutoHelp=Si cette case est cochée, l'agenda natif (vue calendrier) n'affiche plus les événements dont le type est « automatique système » dans Dolibarr (par ex. « Autre (auto) », et les traces auto comme envoi de proposition ou de facture par e-mail lorsque ces types sont actifs). Les événements saisis manuellement restent visibles.
+CalDAVAgendaTileColorByUser=Tuiles agenda : couleur selon l'utilisateur affecté
+CalDAVAgendaTileColorByUserHelp=Sur l'agenda natif (vues mois, semaine, jour), la bande de couleur à gauche de chaque événement utilise la couleur définie sur la fiche utilisateur lorsqu'un seul utilisateur est affecté. Si plusieurs utilisateurs sont affectés, la couleur ci-dessous est utilisée. Anniversaires, congés et événements iCal externes ne sont pas modifiés.
+CalDAVAgendaMultiUserTileColor=Couleur pour événements multi-utilisateurs
+CalDAVAgendaMultiUserTileColorHelp=Couleur de la bande gauche lorsque plus d'un utilisateur est affecté à l'événement (sélecteur HTML5).
+CalDAVDayGridAllDay=Journée entière
+NewConnection=Nouvelle connexion
+EditConnection=Modifier la connexion
+ConnectionCreated=Connexion créée avec succès
+ConnectionUpdated=Connexion mise à jour avec succès
+ConnectionDeleted=Connexion supprimée avec succès
+NoConnectionFound=Aucune connexion trouvée
+
+# Champs du formulaire
+Name=Nom
+URL=URL
+Username=Nom d'utilisateur
+Password=Mot de passe
+CalendarPath=Chemin du calendrier
+Color=Couleur
+Enabled=Actif
+ActiveByDefault=Actif par défaut
+Actions=Actions
+Modify=Modifier
+Delete=Supprimer
+Save=Enregistrer
+Cancel=Annuler
+
+# Messages d'aide
+CalendarPathHelp=Laissez vide pour utiliser le chemin par défaut. Exemple pour Nextcloud: /remote.php/dav/calendars/username/calendarname/
+LeaveEmptyToKeepCurrent=Laissez vide pour conserver le mot de passe actuel
+
+# Événements
+CalDAVEvent=Événement CalDAV
+UntitledEvent=Événement sans titre
+
+# Calendriers
+ViewCalendars=Voir les calendriers
+CalendarsForConnection=Calendriers pour la connexion : %s
+NoCalendarsFound=Aucun calendrier trouvé
+NoCalendarsFoundHelp=Vérifiez que l'URL, le nom d'utilisateur et le mot de passe sont corrects. Pour Nextcloud, le chemin par défaut est généralement /remote.php/dav/calendars/username/
+CheckLogsForDetails=Consultez les logs Dolibarr pour plus de détails (niveau DEBUG)
+DiscoverCalendars=Découvrir les calendriers
+CalendarsDiscovered=%s calendrier(s) ajouté(s), %s calendrier(s) mis à jour
+CalendarUpdated=Calendrier mis à jour avec succès
+EditCalendar=Modifier le calendrier
+DisplayName=Nom d'affichage
+Enable=Activer
+Disable=Désactiver
+BackToList=Retour à la liste
+ErrorDiscoveringCalendars=Erreur lors de la découverte des calendriers
+ConnectionMustBeEnabled=La connexion doit être activée avant de découvrir les calendriers
+CalDAVEvent=Événement CalDAV
+UntitledEvent=Événement sans titre
+
+# Erreurs
+ErrorFieldRequired=Le champ %s est obligatoire
+
+# Page de test
+CalDAVTestEvents=Test des événements CalDAV
+DateStart=Date de début
+DateEnd=Date de fin
+Refresh=Actualiser
+Connection=Connexion
+Calendar=Calendrier
+Status=Statut
+EventsCount=Nombre d'événements
+Details=Détails
+NoActiveCalendars=Aucun calendrier actif trouvé
+ConnectionDisabled=Connexion désactivée
+Disabled=Désactivé
+Enabled=Activé
+ViewEvents=Voir les événements
+NoEvents=Aucun événement
+Events=Événements
+Title=Titre
+Start=Début
+End=Fin
+Location=Localisation
+Description=Description
+Error=Erreur
+Summary=Résumé
+TotalCalendars=Total de calendriers
+TotalEvents=Total d'événements
+Errors=Erreurs
+DebugInfo=Informations de débogage
+
+# Visibilité des calendriers (v0.9.0)
+Visibility=Visibilité
+Public=Public
+Individual=Individuel
+VisibleByAllUsers=Visible par tous les utilisateurs
+VisibleBySelectedUsers=Visible par les utilisateurs sélectionnés
+AssignedUsers=Utilisateurs assignés
+OnlyForIndividualVisibility=Uniquement pour la visibilité "Individuel"
+SelectUsers=Sélectionner les utilisateurs
+NoUserSelected=Aucun utilisateur sélectionné
+users=utilisateurs
+ReadOnly=Lecture seule
+CurrentColor=Couleur actuelle
+
+# Affectation calendrier -> utilisateur (v0.10.1+)
+CalendarOwnerUser=Utilisateur Dolibarr du calendrier
+CalendarOwnerUserHelp=Utilisé pour définir l'organisateur (ORGANIZER) des événements envoyés sur CalDAV. Cela permet d'afficher le bon utilisateur côté serveur CalDAV.
+
+# Mode lecture seule (v0.9.0)
+ReadOnlyMode=Mode lecture seule
+CalDAVEventsReadOnly=Les événements CalDAV sont affichés en lecture seule
+CannotModifyCalDAVEvents=Vous ne pouvez pas modifier les événements CalDAV depuis Dolibarr
+ModifyOnCalDAVServer=Modifiez les événements directement sur le serveur CalDAV (Nextcloud, etc.)
+
+# Widget page d'accueil (v0.9.0)
+CalDAVEventsBox=Événements CalDAV à venir
+CalDAVUpcomingEvents=Événements CalDAV à venir
+TodayAndTomorrow=Aujourd'hui et demain
+NoCalDAVEventsUpcoming=Aucun événement CalDAV à venir
+NoCalDAVCalendarConfigured=Aucun calendrier CalDAV configuré
+AllDay=Toute la journée
+Today=Aujourd'hui
+Tomorrow=Demain
+Location=Lieu
+
+# Synchronisation (v0.10.0)
+Default=Par défaut
+Synchronization=Synchronisation
+CalDAVSyncConfiguration=Configuration de la synchronisation CalDAV
+SyncMode=Mode de synchronisation
+SyncModeHelp=Choisissez comment synchroniser les événements entre Dolibarr et CalDAV
+SyncModeDolibarrToCalDAV=Dolibarr → CalDAV (Dolibarr est maître)
+SyncModeCalDAVToDolibarr=CalDAV → Dolibarr (CalDAV est maître)
+SyncModeBidirectional=Bidirectionnel (le dernier modifié gagne)
+SyncInterval=Intervalle de synchronisation
+SyncIntervalHelp=Durée entre chaque synchronisation automatique (5-1440 minutes)
+Minutes=minutes
+EnableAutoSync=Activer la synchronisation automatique
+EnableAutoSyncHelp=Si activé, le cron job synchronisera automatiquement les calendriers
+InvalidSyncMode=Mode de synchronisation invalide
+InvalidSyncInterval=L'intervalle doit être entre 5 et 1440 minutes
+ManualSync=Synchronisation manuelle
+ManualSyncHelp=Lancer une synchronisation immédiate de tous les calendriers actifs
+SyncNow=Synchroniser maintenant
+SyncSuccess=Synchronisation réussie
+SyncErrors=Erreurs lors de la synchronisation
+SyncModesExplanation=Explication des modes de synchronisation
+SyncModeDolibarrToCalDAVDesc=Les événements créés ou modifiés dans Dolibarr sont envoyés au serveur CalDAV. Idéal pour gérer vos événements dans Dolibarr et les partager via CalDAV.
+SyncModeCalDAVToDolibarrDesc=Les événements du serveur CalDAV sont importés dans Dolibarr. Idéal pour centraliser vos calendriers externes dans Dolibarr. Les événements supprimés sur CalDAV sont supprimés dans Dolibarr.
+SyncModeBidirectionalDesc=Synchronisation dans les deux sens. En cas de conflit, le dernier événement modifié (Dolibarr ou CalDAV) gagne. Attention : mode avancé nécessitant une bonne compréhension de la synchronisation.
