@@ -9,6 +9,23 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 **Licence du dépôt** : [GNU General Public License](https://www.gnu.org/licenses/gpl-3.0.html) **version 3 ou toute version ultérieure** (SPDX : `GPL-3.0-or-later`). Textes `LICENSE` et `COPYING` à la racine du module.
 
+## [0.22.0] - 2026-09-20
+
+### Corrigé
+- **Dolibarr 24 : l’option « Masquer les événements automatiques système » ne masquait plus rien.** Les traces automatiques (envoi de devis, de facture, actions natives) réapparaissaient dans l’agenda et le surchargeaient.
+  - **Liste de l’agenda** (`comm/action/list.php`) : Dolibarr 24 a réécrit la requête et renommé l’alias du dictionnaire des types (`ca` → `c`). Le filtre passe désormais par le crochet **`printFieldListWhere`**, avec un `AND NOT EXISTS` basé sur `a.fk_action` — donc valable avant **et** après la 24.
+  - **Calendrier** (`comm/action/index.php`) : ce dernier n’expose que `printFieldListFrom`. Le `JOIN` injecté ne s’appuie plus sur l’alias `ca` (fragile depuis que Dolibarr 24 ajoute ses propres `INNER JOIN` en amont), mais sur `a.fk_action` uniquement.
+  - **Filet de sécurité** : si un événement automatique est tout de même chargé par le calendrier, sa tuile est retirée à l’affichage (marqueur posé par le hook `eventOptions`, retrait par le script de fin de page).
+- **Détection du module activé** : passage à **`isModEnabled('caldavclient')`** (méthode recommandée depuis Dolibarr 20) au lieu de `$conf->caldavclient->enabled`, avec repli sur l’ancienne forme pour les versions antérieures. Cette lecture pouvait être vide selon le contexte d’appel et neutraliser les hooks.
+
+- **`admin/test_agenda_natif.php`** : parenthèse mal placée qui rendait la page de diagnostic de l’agenda natif impossible à ouvrir (erreur PHP au chargement). C’est précisément la page qui sert à vérifier ce filtre.
+
+### Note
+- L’option native Dolibarr `AGENDA_ALWAYS_HIDE_AUTO` ne masque qu’un seul code (`AC_OTH_AUTO`). Celle du module couvre **toute** la famille `llx_c_actioncomm.type = 'systemauto'`.
+
+### Documentation (fichiers de version)
+- **`VERSION`**, descripteur module, trigger, **`admin/about.php`**, **`README.md`**, **`DOCUMENTATION_INDEX.md`** : **0.22.0**.
+
 ## [0.21.0] - 2026-09-20
 
 ### Sécurité

@@ -27,18 +27,47 @@
 class CaldavclientAgendaFooterScript
 {
 	/**
+	 * Filet de sécurité du calendrier : retire les tuiles marquées « automatique système ».
+	 *
+	 * Le filtre principal reste le SQL (hooks printFieldListFrom / printFieldListWhere).
+	 * Ce bloc ne sert que si Dolibarr a tout de même chargé l'événement — cas rencontré
+	 * depuis la 24.0, où la requête du calendrier ne tient plus compte du JOIN ajouté.
+	 * Le marqueur est posé par le hook eventOptions (ActionsCaldavclient::eventOptions).
+	 *
+	 * @return string Code JS (indenté d'une tabulation, à insérer dans jQuery(function () { … }))
+	 */
+	private static function buildHideSystemAutoSnippet()
+	{
+		return '	jQuery(".caldavclient-hide-systemauto-flag").each(function () {
+		var flag = jQuery(this);
+		var tuile = flag.closest("div.event");
+		if (!tuile.length) {
+			tuile = flag.closest("table.cal_event");
+		}
+		if (tuile.length) {
+			tuile.remove();
+		} else {
+			flag.remove();
+		}
+	});
+';
+	}
+
+	/**
 	 * @param  string $nonceattr        Ex. ' nonce="..."' ou vide (déjà échappé pour attribut HTML)
 	 * @param  int    $agendaStartWeek  MAIN_START_WEEK (0 = dimanche, 1 = lundi, …)
 	 * @param  string $labelAlldayJs    Libellé « journée entière » déjà passé dans dol_escape_js()
+	 * @param  bool   $hideSystemAuto   Option « masquer les automatiques système » active
 	 * @return string                   HTML script complet
 	 */
-	public static function buildLlxFooterScript($nonceattr, $agendaStartWeek, $labelAlldayJs)
+	public static function buildLlxFooterScript($nonceattr, $agendaStartWeek, $labelAlldayJs, $hideSystemAuto = false)
 	{
 		$sw = (int) $agendaStartWeek;
+		$purge_systemauto = $hideSystemAuto ? self::buildHideSystemAutoSnippet() : '';
 
 		return '<script type="text/javascript"'.$nonceattr.'>
 jQuery(function () {
-	var form = jQuery("#searchFormList");
+'.$purge_systemauto.'	var form = jQuery("#searchFormList");
 	if (form.length && form.find(".sectioncalendarbymonth, .sectioncalendarbyweek, .sectioncalendarbyday").length) {
 		var barre = form.find("table.table-fiche-title").first();
 		if (barre.length) {

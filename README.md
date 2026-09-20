@@ -1,6 +1,6 @@
 # Module CalDAV Client pour Dolibarr
 
-![Version](https://img.shields.io/badge/version-0.21.0-blue.svg)
+![Version](https://img.shields.io/badge/version-0.22.0-blue.svg)
 ![License](https://img.shields.io/badge/license-GPL--3.0%2B-green.svg)
 ![Dolibarr](https://img.shields.io/badge/Dolibarr-16.0%2B-orange.svg)
 
@@ -8,6 +8,7 @@ Module permettant à Dolibarr de **synchroniser** avec des calendriers externes 
 
 ## 📋 Table des matières
 
+- [Nouveautés v0.22.0](#-nouveautés-v0220)
 - [Nouveautés v0.21.0](#-nouveautés-v0210)
 - [Nouveautés v0.20.0](#-nouveautés-v0200)
 - [Nouveautés v0.10.11](#-nouveautés-v01011)
@@ -30,6 +31,24 @@ Module permettant à Dolibarr de **synchroniser** avec des calendriers externes 
 - [Dépannage](#-dépannage)
 - [Développement](#-développement)
 - [Licence](#-licence)
+
+## 🆕 Nouveautés v0.22.0
+
+### Compatibilité Dolibarr 24 : les événements automatiques sont de nouveau masqués
+
+Depuis Dolibarr **24.0**, l’option **« Masquer les événements automatiques système »** ne faisait plus effet : l’agenda se remplissait à nouveau de traces automatiques (envoi de devis, de facture, etc.).
+
+Trois causes, toutes corrigées :
+
+- Dolibarr 24 **remet à zéro** son propre filtre « événements non automatiques ». Le module ne s’appuie plus dessus.
+- La **liste de l’agenda** a changé de requête (le dictionnaire des types s’appelle désormais `c` et non plus `ca`). Le filtre passe maintenant par le crochet `printFieldListWhere`, écrit pour ne dépendre d’aucun de ces deux noms.
+- Le **calendrier** (vues mois / semaine / jour) pouvait ignorer le filtre ajouté. Un filet de sécurité retire désormais la tuile si un automatique passe quand même.
+
+Rappel : l’option native de Dolibarr ne masque qu’un seul type (« Autre (auto) »). Celle du module masque **toute** la famille des automatiques système.
+
+👉 L’option se trouve dans **CalDAV Client > Configuration**. Elle est sur **Non** par défaut.
+
+---
 
 ## 🆕 Nouveautés v0.21.0
 

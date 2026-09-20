@@ -68,7 +68,18 @@ class ActionsCaldavclient
 	}
 
 	/**
-	 * Hook printFieldListFrom (contexte agenda) — filtre SQL sur l'agenda natif comm/action/index.php
+	 * Le module est-il activé ? (Dolibarr 20+ : isModEnabled)
+	 *
+	 * @return bool
+	 */
+	private function isModuleEnabled()
+	{
+		return CaldavclientAgendaListSql::isCalDavClientEnabled();
+	}
+
+	/**
+	 * Hook printFieldListFrom — filtre SQL sur le calendrier (comm/action/index.php).
+	 * Sur la liste (contexte agendalist), on laisse printFieldListWhere faire le travail.
 	 *
 	 * @param  array        $parameters  Paramètres du hook
 	 * @param  mixed        $object      Objet contexte
@@ -78,20 +89,42 @@ class ActionsCaldavclient
 	 */
 	public function printFieldListFrom($parameters, &$object, &$action, $hookmanager)
 	{
-		global $conf;
-
-		if (empty($conf->caldavclient->enabled)) {
-			return 0;
-		}
-		if (!getDolGlobalString('CALDAVCLIENT_HIDE_AGENDA_SYSTEMAUTO')) {
+		if (!CaldavclientAgendaListSql::isHideSystemAutoEnabled()) {
 			return 0;
 		}
 
-		// Exclure les types d'événements « automatiques système » (llx_c_actioncomm.type = 'systemauto') :
-		// regroupe « Autre (auto) » (AC_OTH_AUTO) et les actions auto activées (envoi mail propal, facture, etc.).
-		// Obligatoire : voir HookManager::executeHooks (type addreplace) — agrège ->resprints puis assigne resPrint.
+		$contexte = isset($parameters['currentcontext']) ? (string) $parameters['currentcontext'] : '';
+		if ($contexte === 'agendalist') {
+			return 0;
+		}
+
+		// Exclure les types « automatiques système » (llx_c_actioncomm.type = 'systemauto') :
+		// « Autre (auto) » et traces auto (mail devis, facture, etc.).
+		// Obligatoire : HookManager agrège ->resprints puis copie dans resPrint.
 		$this->resprints = CaldavclientAgendaListSql::getExcludeSystemAutoJoin($this->db);
 		dol_syslog("CalDAV: printFieldListFrom — filtre systemauto appliqué sur l'agenda", LOG_DEBUG);
+
+		return 0;
+	}
+
+	/**
+	 * Hook printFieldListWhere — filtre SQL sur la liste (comm/action/list.php, Dolibarr 24).
+	 * AND NOT EXISTS sur a.fk_action : ne dépend pas de l'alias ca (ancien) vs c (v24).
+	 *
+	 * @param  array        $parameters  Paramètres du hook
+	 * @param  mixed        $object      Objet contexte
+	 * @param  string       $action      Action en cours
+	 * @param  HookManager  $hookmanager Gestionnaire de hooks
+	 * @return int                      0
+	 */
+	public function printFieldListWhere($parameters, &$object, &$action, $hookmanager)
+	{
+		if (!CaldavclientAgendaListSql::isHideSystemAutoEnabled()) {
+			return 0;
+		}
+
+		$this->resprints = CaldavclientAgendaListSql::getExcludeSystemAutoWhere($this->db);
+		dol_syslog("CalDAV: printFieldListWhere — filtre systemauto appliqué sur la liste agenda", LOG_DEBUG);
 
 		return 0;
 	}
@@ -112,7 +145,7 @@ class ActionsCaldavclient
 		dol_syslog("CalDAV: Hook addCalendarChoice appelé", LOG_DEBUG);
 
 		// Vérifier que le module est activé
-		if (empty($conf->caldavclient->enabled)) {
+		if (!$this->isModuleEnabled()) {
 			dol_syslog("CalDAV: Module non activé dans addCalendarChoice", LOG_DEBUG);
 			return 0;
 		}
@@ -202,7 +235,7 @@ class ActionsCaldavclient
 
 		dol_syslog("CalDAV: Hook updateFullcalendarEvents appelé", LOG_DEBUG);
 
-		if (empty($conf->caldavclient->enabled)) {
+		if (!$this->isModuleEnabled()) {
 			dol_syslog("CalDAV: Module non activé dans updateFullcalendarEvents", LOG_DEBUG);
 			return 0;
 		}
@@ -226,7 +259,7 @@ class ActionsCaldavclient
 		global $conf;
 
 		// Vérifier que le module est activé
-		if (empty($conf->caldavclient->enabled)) {
+		if (!$this->isModuleEnabled()) {
 			return 0;
 		}
 
@@ -262,7 +295,7 @@ class ActionsCaldavclient
 		global $conf;
 
 		// Vérifier que le module est activé
-		if (empty($conf->caldavclient->enabled)) {
+		if (!$this->isModuleEnabled()) {
 			return 0;
 		}
 
@@ -312,13 +345,23 @@ jQuery(document).ready(function () {
 	 */
 	public function eventOptions($parameters, &$object, &$action, $hookmanager)
 	{
-		global $conf;
-
-		if (empty($conf->caldavclient->enabled) || !getDolGlobalString('CALDAVCLIENT_AGENDA_TILE_BY_USER')) {
+		if (!$this->isModuleEnabled()) {
 			return 0;
 		}
 
 		if (!is_object($object) || !($object instanceof ActionComm)) {
+			return 0;
+		}
+
+		// Filet de sécurité calendrier (Dolibarr 24) : si le SQL n'a pas exclu l'auto,
+		// on pose un marqueur. Le CSS + le script de fin de page retirent la tuile.
+		if (CaldavclientAgendaListSql::isHideSystemAutoEnabled()
+			&& CaldavclientAgendaListSql::isSystemAutoEvent($object)
+		) {
+			print '<span class="caldavclient-hide-systemauto-flag" style="display:none!important" aria-hidden="true"></span>';
+		}
+
+		if (!getDolGlobalString('CALDAVCLIENT_AGENDA_TILE_BY_USER')) {
 			return 0;
 		}
 
@@ -348,7 +391,7 @@ jQuery(document).ready(function () {
 	{
 		global $conf, $langs;
 
-		if (empty($conf->caldavclient->enabled)) {
+		if (!$this->isModuleEnabled()) {
 			return 0;
 		}
 		if (empty($_SERVER['PHP_SELF']) || !preg_match('#/comm/action/index\.php$#', (string) $_SERVER['PHP_SELF'])) {
@@ -358,11 +401,17 @@ jQuery(document).ready(function () {
 		$langs->load('caldavclient@caldavclient');
 		$label_allday_js = dol_escape_js($langs->transnoentitiesnoconv('CalDAVDayGridAllDay'));
 		$agenda_start_week_js = (int) getDolGlobalInt('MAIN_START_WEEK', 1);
+		$hide_systemauto = CaldavclientAgendaListSql::isHideSystemAutoEnabled();
 
 		$nonce = function_exists('getNonce') ? getNonce() : '';
 		$nonceattr = $nonce !== '' ? ' nonce="'.dol_escape_htmltag($nonce).'"' : '';
 
-		$this->resprints = CaldavclientAgendaFooterScript::buildLlxFooterScript($nonceattr, $agenda_start_week_js, $label_allday_js);
+		$this->resprints = CaldavclientAgendaFooterScript::buildLlxFooterScript(
+			$nonceattr,
+			$agenda_start_week_js,
+			$label_allday_js,
+			$hide_systemauto
+		);
 
 		return 0;
 	}
@@ -381,7 +430,7 @@ jQuery(document).ready(function () {
 	{
 		global $conf, $db;
 
-		if (empty($conf->caldavclient->enabled)) {
+		if (!$this->isModuleEnabled()) {
 			dol_syslog("CalDAV: Module non activé dans getCalendarEvents", LOG_DEBUG);
 			return 0;
 		}

@@ -72,7 +72,7 @@ class modCalDAvClient extends DolibarrModules
 	$this->editor_url = '';
 		
 	// Valeurs possibles pour version: 'development', 'experimental', 'dolibarr' ou version
-	$this->version = '0.21.0';
+	$this->version = '0.22.0';
 		// Licence : GNU GPL version 3 ou ultérieure (SPDX GPL-3.0-or-later) — fichiers LICENSE et COPYING à la racine du module.
 
 		// Clé utilisée dans la table llx_const pour sauvegarder le statut activé/désactivé du module
