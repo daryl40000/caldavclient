@@ -98,6 +98,16 @@ class ActionsCaldavclient
 			return 0;
 		}
 
+		// Filtre « ressource » actif : Dolibarr ajoute juste avant ce hook une table
+		// séparée par une virgule (", element_resources as r"). Or la virgule est moins
+		// prioritaire que JOIN : notre ON ne verrait plus l'alias `a` et MySQL refuserait
+		// la requête (Unknown column 'a.fk_action' in 'on clause'), cassant l'agenda.
+		// On s'abstient donc ici ; le filet de sécurité à l'affichage prend le relais.
+		if (GETPOSTINT('search_resourceid') > 0 || GETPOSTINT('resourceid') > 0) {
+			dol_syslog("CalDAV: printFieldListFrom — filtre ressource actif, JOIN systemauto ignoré (filet JS)", LOG_DEBUG);
+			return 0;
+		}
+
 		// Exclure les types « automatiques système » (llx_c_actioncomm.type = 'systemauto') :
 		// « Autre (auto) » et traces auto (mail devis, facture, etc.).
 		// Obligatoire : HookManager agrège ->resprints puis copie dans resPrint.
@@ -231,8 +241,6 @@ class ActionsCaldavclient
 	 */
 	public function updateFullcalendarEvents($parameters, &$object, &$action, $hookmanager)
 	{
-		global $conf;
-
 		dol_syslog("CalDAV: Hook updateFullcalendarEvents appelé", LOG_DEBUG);
 
 		if (!$this->isModuleEnabled()) {
@@ -256,8 +264,6 @@ class ActionsCaldavclient
 	 */
 	public function formatEvent($parameters, &$object, &$action, $hookmanager)
 	{
-		global $conf;
-
 		// Vérifier que le module est activé
 		if (!$this->isModuleEnabled()) {
 			return 0;
@@ -292,8 +298,6 @@ class ActionsCaldavclient
 	 */
 	public function addCalendarJS($parameters, &$object, &$action, $hookmanager)
 	{
-		global $conf;
-
 		// Vérifier que le module est activé
 		if (!$this->isModuleEnabled()) {
 			return 0;
@@ -389,7 +393,7 @@ jQuery(document).ready(function () {
 	 */
 	public function llxFooter($parameters, &$object, &$action, $hookmanager)
 	{
-		global $conf, $langs;
+		global $langs;
 
 		if (!$this->isModuleEnabled()) {
 			return 0;
@@ -428,7 +432,7 @@ jQuery(document).ready(function () {
 	 */
 	public function getCalendarEvents($parameters, &$object, &$action, $hookmanager)
 	{
-		global $conf, $db;
+		global $db;
 
 		if (!$this->isModuleEnabled()) {
 			dol_syslog("CalDAV: Module non activé dans getCalendarEvents", LOG_DEBUG);

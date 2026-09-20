@@ -32,7 +32,7 @@ class InterfaceCalDAvClientTrigger extends DolibarrTriggers
 		$this->name = preg_replace('/^Interface/i', '', get_class($this));
 		$this->family = "caldavclient";
 		$this->description = "Triggers du module CalDAV Client pour la synchronisation";
-		$this->version = '0.22.0';
+		$this->version = '0.22.1';
 		$this->picto = 'caldavclient@caldavclient';
 	}
 

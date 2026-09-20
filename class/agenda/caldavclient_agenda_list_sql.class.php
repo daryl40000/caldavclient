@@ -35,18 +35,23 @@
 class CaldavclientAgendaListSql
 {
 	/**
+	 * Codes de type « automatique système » du dictionnaire Dolibarr.
+	 *
+	 * Liste volontairement explicite : un code maison finissant par « _AUTO »
+	 * (ex. AC_RELANCE_AUTO créé par l'utilisateur) ne doit pas être masqué par
+	 * erreur. La référence reste llx_c_actioncomm.type ; ceci n'est qu'un repli,
+	 * aligné sur ce que fait le cœur Dolibarr avec AGENDA_ALWAYS_HIDE_AUTO.
+	 */
+	const TYPE_CODES_SYSTEMAUTO = array('AC_OTH_AUTO');
+
+	/**
 	 * Le module CalDAV Client est-il activé ?
-	 * Dolibarr 20+ recommande isModEnabled() ; $conf->xxx->enabled reste un repli.
 	 *
 	 * @return bool
 	 */
 	public static function isCalDavClientEnabled()
 	{
-		if (function_exists('isModEnabled')) {
-			return isModEnabled('caldavclient');
-		}
-		global $conf;
-		return !empty($conf->caldavclient->enabled);
+		return isModEnabled('caldavclient');
 	}
 
 	/**
@@ -63,26 +68,38 @@ class CaldavclientAgendaListSql
 	}
 
 	/**
-	 * JOIN à coller dans FROM (calendrier). Une table factice d'une seule ligne
-	 * sert de « portail » : la vraie condition est dans ON (NOT EXISTS …).
+	 * Condition « ce n'est pas un automatique système », partagée par le JOIN et le WHERE.
 	 *
-	 * On n'utilise que l'alias `a` (table actioncomm), commun au calendrier et
+	 * On ne référence que l'alias `a` (table actioncomm), commun au calendrier et
 	 * à la liste. On évite `ca` / `c` : Dolibarr 24 les a divergés.
+	 *
+	 * @param  DoliDB $db Handler base
+	 * @return string     Fragment SQL commençant par un espace (NOT EXISTS …)
+	 */
+	private static function buildNotExistsSystemAuto(DoliDB $db)
+	{
+		$sql = " NOT EXISTS (";
+		$sql .= " SELECT 1 FROM ".MAIN_DB_PREFIX."c_actioncomm AS caldav_sysauto_ex";
+		$sql .= " WHERE caldav_sysauto_ex.id = a.fk_action";
+		$sql .= " AND caldav_sysauto_ex.type = '".$db->escape('systemauto')."'";
+		$sql .= " )";
+		return $sql;
+	}
+
+	/**
+	 * JOIN à coller dans FROM (calendrier). Une table factice d'une seule ligne
+	 * sert de « portail » : la vraie condition est dans ON.
+	 *
+	 * Attention : ce fragment n'est utilisable que si aucune table n'a été ajoutée
+	 * par une virgule juste avant (voir ActionsCaldavclient::printFieldListFrom).
 	 *
 	 * @param  DoliDB $db Handler base
 	 * @return string     Fragment SQL commençant par un espace
 	 */
 	public static function getExcludeSystemAutoJoin(DoliDB $db)
 	{
-		$table_types = MAIN_DB_PREFIX.'c_actioncomm';
-		$valeur_systemauto = $db->escape('systemauto');
-
 		$sql = " INNER JOIN (SELECT 1 AS caldav_hide_sysauto_ok) AS caldav_hide_sysauto";
-		$sql .= " ON NOT EXISTS (";
-		$sql .= " SELECT 1 FROM ".$table_types." AS caldav_sysauto_ex";
-		$sql .= " WHERE caldav_sysauto_ex.id = a.fk_action";
-		$sql .= " AND caldav_sysauto_ex.type = '".$valeur_systemauto."'";
-		$sql .= " )";
+		$sql .= " ON".self::buildNotExistsSystemAuto($db);
 		return $sql;
 	}
 
@@ -95,15 +112,7 @@ class CaldavclientAgendaListSql
 	 */
 	public static function getExcludeSystemAutoWhere(DoliDB $db)
 	{
-		$table_types = MAIN_DB_PREFIX.'c_actioncomm';
-		$valeur_systemauto = $db->escape('systemauto');
-
-		$sql = " AND NOT EXISTS (";
-		$sql .= " SELECT 1 FROM ".$table_types." AS caldav_sysauto_ex";
-		$sql .= " WHERE caldav_sysauto_ex.id = a.fk_action";
-		$sql .= " AND caldav_sysauto_ex.type = '".$valeur_systemauto."'";
-		$sql .= " )";
-		return $sql;
+		return " AND".self::buildNotExistsSystemAuto($db);
 	}
 
 	/**
@@ -119,11 +128,13 @@ class CaldavclientAgendaListSql
 			return false;
 		}
 
-		// Cas principal : Dolibarr renseigne ca.type dans $event->type (calendrier index.php).
+		// Référence : llx_c_actioncomm.type, que Dolibarr recopie dans $event->type
+		// (calendrier index.php). C'est la même définition que le filtre SQL.
 		if (isset($event->type) && (string) $event->type === 'systemauto') {
 			return true;
 		}
 
+		// Repli si le type n'a pas été chargé : uniquement les codes connus de Dolibarr.
 		$code = '';
 		if (!empty($event->type_code)) {
 			$code = (string) $event->type_code;
@@ -131,11 +142,6 @@ class CaldavclientAgendaListSql
 			$code = (string) $event->code;
 		}
 
-		// Sécurité : codes du dictionnaire du type AC_OTH_AUTO, AC_PROPAL_AUTO, etc.
-		if ($code !== '' && preg_match('/_AUTO$/', $code)) {
-			return true;
-		}
-
-		return false;
+		return $code !== '' && in_array($code, self::TYPE_CODES_SYSTEMAUTO, true);
 	}
 }

@@ -1,4 +1,4 @@
-# Index de la Documentation - Module CalDAV Client v0.22.0
+# Index de la Documentation - Module CalDAV Client v0.22.1
 
 Bienvenue dans la documentation complète du module CalDAV Client pour Dolibarr.
 

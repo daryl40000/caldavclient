@@ -1,6 +1,6 @@
 # Module CalDAV Client pour Dolibarr
 
-![Version](https://img.shields.io/badge/version-0.22.0-blue.svg)
+![Version](https://img.shields.io/badge/version-0.22.1-blue.svg)
 ![License](https://img.shields.io/badge/license-GPL--3.0%2B-green.svg)
 ![Dolibarr](https://img.shields.io/badge/Dolibarr-16.0%2B-orange.svg)
 
@@ -47,6 +47,21 @@ Trois causes, toutes corrigées :
 Rappel : l’option native de Dolibarr ne masque qu’un seul type (« Autre (auto) »). Celle du module masque **toute** la famille des automatiques système.
 
 👉 L’option se trouve dans **CalDAV Client > Configuration**. Elle est sur **Non** par défaut.
+
+### Bon à savoir sur le filet de sécurité
+
+Le filtre principal se fait **dans la requête** : les événements automatiques ne sont pas lus du tout. C’est le cas courant, et il n’a aucun effet de bord.
+
+Dans deux situations, le filtre repasse par le **filet de sécurité**, qui retire la tuile *après* l’affichage :
+
+- quand vous filtrez l’agenda **par ressource** (le calendrier de Dolibarr construit alors une requête qui n’accepte pas notre filtre) ;
+- si un événement automatique échappe malgré tout à la requête.
+
+Dans ces cas, gardez en tête que :
+
+- l’événement masqué **compte quand même** dans la limite d’affichage par journée (le « +N » en bas des cases). Une journée peut donc sembler vide tout en affichant un « +N » ;
+- un très bref clignotement est possible avant que la tuile disparaisse ;
+- si JavaScript est désactivé dans le navigateur, le filet ne fonctionne pas.
 
 ---
 

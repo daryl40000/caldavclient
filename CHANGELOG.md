@@ -9,6 +9,20 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 **Licence du dépôt** : [GNU General Public License](https://www.gnu.org/licenses/gpl-3.0.html) **version 3 ou toute version ultérieure** (SPDX : `GPL-3.0-or-later`). Textes `LICENSE` et `COPYING` à la racine du module.
 
+## [0.22.1] - 2026-09-20
+
+### Corrigé
+- **Agenda en erreur lorsqu’on filtrait par ressource.** Juste avant notre crochet, Dolibarr ajoute la table des ressources avec une **virgule** (`, element_resources as r`). Or la virgule est moins prioritaire que `JOIN` : le `ON` de notre filtre ne voyait plus l’alias `a` et MySQL rejetait la requête (`Unknown column 'a.fk_action' in 'on clause'`), ce qui cassait la page. Le `JOIN` n’est désormais plus injecté dans ce cas ; le filet de sécurité à l’affichage prend le relais. Défaut présent depuis la **0.21.0**, révélé par la revue de code.
+- **Événements masqués à tort.** Le repli de détection acceptait **tout** code finissant par `_AUTO`. Un type créé par l’utilisateur (ex. `AC_RELANCE_AUTO`) disparaissait donc de l’agenda sans prévenir. Le repli se limite maintenant aux codes connus de Dolibarr (`AC_OTH_AUTO`), la référence restant `llx_c_actioncomm.type`.
+
+### Modifié (qualité de code, comportement inchangé)
+- **Fragments SQL** : le `NOT EXISTS`, jusque-là recopié dans le `JOIN` et dans le `WHERE`, est factorisé dans une méthode privée partagée.
+- **Détection du module activé** : suppression du repli `$conf->caldavclient->enabled`, jamais atteint puisque le module exige Dolibarr 16+ (`isModEnabled()` existe depuis la 15).
+- **`ActionsCaldavclient`** : suppression de cinq `global $conf;` devenus inutiles après le passage à `isModEnabled()`.
+
+### Documentation
+- **`README.md`** : nouvelle section expliquant quand le filtre passe par la requête et quand il passe par le filet de sécurité, avec ses limites (quota « +N » par journée, bref clignotement, inactif sans JavaScript).
+
 ## [0.22.0] - 2026-09-20
 
 ### Corrigé
