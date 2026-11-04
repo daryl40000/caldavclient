@@ -69,7 +69,8 @@ trait CalDAVClientCrudTrait
 		$resource_url = rtrim($calendar_url, '/').'/'.rawurlencode($event['uid']).'.ics';
 
 		$headers = array(
-			'Content-Type: text/calendar; charset=utf-8'
+			'Content-Type: text/calendar; charset=utf-8',
+			'If-None-Match: *'
 		);
 
 		$response = $this->request('PUT', $resource_url, $ical, $headers);
@@ -119,11 +120,35 @@ trait CalDAVClientCrudTrait
 	 * @param  array  $event        Nouvelles données
 	 * @return array               ['success'=>bool,'code'=>int,'etag'=>string|null,'error'=>string|null,'url'=>string]
 	 */
-	public function updateEventOnCalendar($calendar_url, $uid, $etag, $event)
+	public function updateEventOnCalendar($calendar_url, $uid, $etag, $event, $remote_event = null)
 	{
+		if (empty($etag) || $etag === '*' || empty($remote_event['href']) || empty($remote_event['raw_calendar_data'])) {
+			throw new RuntimeException('Refusing update without remote resource and ETag');
+		}
+		if (!empty($remote_event['unsupported_recurrence']) || preg_match('/^ATTENDEE(?:[:;])/mi', $remote_event['raw_calendar_data'])) {
+			throw new RuntimeException('Conflict: recurring events and attendees require manual handling');
+		}
 		$event['uid'] = $uid;
-		$ical = $this->generateICalendar($event);
-		$resource_url = rtrim($calendar_url, '/').'/'.rawurlencode($uid).'.ics';
+		$generated = $this->generateICalendar($event);
+		// Retain unknown properties and calendar components instead of reconstructing the resource.
+		$properties = 'SUMMARY|DESCRIPTION|LOCATION|DTSTART|DTEND|DTSTAMP|LAST-MODIFIED';
+		$ical = preg_replace('/\r?\n[ \t]/', '', $remote_event['raw_calendar_data']);
+		preg_match_all('/^(?:'.$properties.')(?:;[^:\r\n]*)?:[^\r\n]*/mi', $generated, $replacement);
+		$ical = preg_replace_callback('/BEGIN:VEVENT\r?\n(.*?)END:VEVENT/is', function ($match) use ($properties, $replacement) {
+			$body = '';
+			$depth = 0;
+			foreach (preg_split('/\r?\n/', $match[1]) as $line) {
+				if ($line === '') continue;
+				if ($depth === 0 && preg_match('/^(?:'.$properties.')(?:;|:)/i', $line)) continue;
+				if (stripos($line, 'BEGIN:') === 0) $depth++;
+				$body .= $line."\r\n";
+				if (stripos($line, 'END:') === 0) $depth--;
+			}
+
+			return "BEGIN:VEVENT\r\n".$body.implode("\r\n", $replacement[0])."\r\nEND:VEVENT";
+		}, $ical, 1);
+
+		$resource_url = $this->calendarResourceUrl($calendar_url, $remote_event['href']);
 
 		$headers = array('Content-Type: text/calendar; charset=utf-8');
 		if (!empty($etag) && $etag !== '*') {
@@ -171,9 +196,13 @@ trait CalDAVClientCrudTrait
 	 * @param  string $etag         ETag actuel (optionnel)
 	 * @return array               ['success'=>bool,'code'=>int,'error'=>string|null,'url'=>string]
 	 */
-	public function deleteEventOnCalendar($calendar_url, $uid, $etag = null)
+	public function deleteEventOnCalendar($calendar_url, $uid, $etag = null, $href = null)
 	{
-		$resource_url = rtrim($calendar_url, '/').'/'.rawurlencode($uid).'.ics';
+		if (empty($etag) || $etag === '*' || empty($href)) {
+			throw new RuntimeException('Refusing deletion without remote resource and ETag');
+		}
+		$resource_url = $this->calendarResourceUrl($calendar_url, $href);
+
 		$headers = array();
 		if (!empty($etag) && $etag !== '*') {
 			$headers[] = 'If-Match: '.$etag;
@@ -189,6 +218,31 @@ trait CalDAVClientCrudTrait
 		);
 	}
 
+	/** Resolve only a direct resource in the exact authenticated calendar. */
+	private function calendarResourceUrl($calendar_url, $href)
+	{
+		$calendar = parse_url($calendar_url);
+		if (strpos($href, '/') === 0 && strpos($href, '//') !== 0) {
+			$href = $calendar['scheme'].'://'.$calendar['host'].(isset($calendar['port']) ? ':'.$calendar['port'] : '').$href;
+		} elseif (!preg_match('~^https?://~i', $href)) {
+			$href = rtrim($calendar_url, '/').'/'.$href;
+		}
+		$resource = parse_url($href);
+		$prefix = rtrim($calendar['path'], '/').'/';
+		$path = isset($resource['path']) ? $resource['path'] : '';
+		$name = substr($path, strlen($prefix));
+		if (!$resource || isset($resource['user']) || isset($resource['pass']) || isset($resource['query']) || isset($resource['fragment'])
+			|| strtolower($resource['scheme'] ?? '') !== strtolower($calendar['scheme'])
+			|| strtolower($resource['host'] ?? '') !== strtolower($calendar['host'])
+			|| ($resource['port'] ?? 443) !== ($calendar['port'] ?? 443)
+			|| strpos($path, $prefix) !== 0 || empty($name)
+			|| strpos(rawurldecode($name), '/') !== false || strpos(rawurldecode($name), '\\') !== false
+			|| in_array(rawurldecode($name), array('.', '..'), true)) {
+			throw new RuntimeException('Remote resource is outside the configured calendar');
+		}
+		return $href;
+	}
+
 	/**
 	 * Extraire un ETag depuis des headers HTTP bruts (cURL)
 	 *
@@ -198,7 +252,7 @@ trait CalDAVClientCrudTrait
 	private function extractEtagFromHeaders($headers_raw)
 	{
 		if (empty($headers_raw)) return null;
-		if (preg_match('/\r?\nETag:\s*([^\r\n]+)/i', $headers_raw, $m)) {
+		if (preg_match('/(?:^|\r?\n)ETag:\s*([^\r\n]+)/i', $headers_raw, $m)) {
 			return trim($m[1]);
 		}
 		return null;
@@ -227,8 +281,8 @@ trait CalDAVClientCrudTrait
 		// Utiliser le fuseau horaire utilisateur Dolibarr si disponible.
 		// Si non défini (cas fréquent), on force un défaut cohérent pour une société en France.
 		$tzid = getDolGlobalString('MAIN_DOLIBARR_USER_TIMEZONE', '');
-		if (empty($tzid) || $tzid === 'UTC') {
-			$tzid = 'Europe/Paris';
+		if (empty($tzid)) {
+			$tzid = date_default_timezone_get();
 		}
 		// Sécuriser: si le TZID n'est pas valide, fallback UTC
 		try {
@@ -287,23 +341,15 @@ trait CalDAVClientCrudTrait
 			}
 		}
 		
-		// DTEND: certains serveurs ignorent une fin vide ou <= début.
-		// On force une fin à +1h si nécessaire.
 		$dtendObj = !empty($event['end']) ? $event['end'] : null;
-		if (!$is_all_day && $event['start']) {
-			$startTs = $event['start'] instanceof DateTime ? $event['start']->getTimestamp() : 0;
-			$endTs = ($dtendObj instanceof DateTime) ? $dtendObj->getTimestamp() : 0;
-			if (empty($endTs) || $endTs <= $startTs) {
-				$dtendObj = new DateTime('@'.($startTs + 3600));
-			}
+		if ($dtendObj && $event['start'] && $dtendObj->getTimestamp() < $event['start']->getTimestamp()) {
+			throw new UnexpectedValueException('Event end precedes start');
 		}
 
 		if ($dtendObj) {
 			if ($is_all_day) {
 				// Pour les événements sur toute la journée, la date de fin est exclusive
-				// Il faut donc ajouter 1 jour
 				$end_date = clone $dtendObj;
-				$end_date->modify('+1 day');
 				$ical .= "DTEND;VALUE=DATE:".$end_date->format('Ymd')."\r\n";
 			} else {
 				$dtend = clone $dtendObj;

@@ -23,137 +23,94 @@
 
 trait CalDAVClientICalTrait
 {
-	/**
-	 * Parser les données iCalendar pour extraire les événements
-	 *
-	 * @param  string $ical_data   Données iCalendar
-	 * @param  string $etag        ETag de la ressource
-	 * @return array               Tableau d'événements
-	 */
+	/** Parse VEVENTs; DATE boundaries use UTC midnight and DTEND stays exclusive. */
 	private function parseICalendar($ical_data, $etag)
 	{
 		$events = array();
-		
-		if (empty($ical_data)) {
-			dol_syslog("CalDAV parseICalendar: Données iCalendar vides", LOG_WARNING);
-			return $events;
-		}
-		
-	// Décoder les données si elles sont encodées (CDATA dans XML)
-	$ical_data = html_entity_decode($ical_data, ENT_QUOTES | ENT_XML1, 'UTF-8');
-	
-	// Extraire les composants VEVENT complets (entre BEGIN:VEVENT et END:VEVENT)
-	preg_match_all('/BEGIN:VEVENT.*?END:VEVENT/is', $ical_data, $matches);
-	$vevents = $matches[0];
-	
-	$event_count = count($vevents);
-	if ($event_count > 0) {
-		dol_syslog("CalDAV parseICalendar: ".$event_count." composant(s) VEVENT complet(s) trouvé(s)", LOG_DEBUG);
-	}
-	
-	foreach ($vevents as $index => $vevent) {
-		if (empty($vevent)) {
-			continue;
-		}
-		
-		// Normaliser le VEVENT : gérer les lignes continuées et supprimer les VALARM en une seule passe
-		$vevent_normalized = preg_replace([
-			'/\r\n[ \t]/',                      // Lignes continuées (CRLF + espace/tab)
-			'/\n[ \t]/',                        // Lignes continuées (LF + espace/tab)
-			'/BEGIN:VALARM.*?END:VALARM/is'    // Composants VALARM (rappels)
-		], '', $vevent);
-		
-		$event = array(
-			'etag' => $etag,
-			'uid' => '',
-			'summary' => '',
-			'description' => '',
-			'start' => null,
-			'end' => null,
-			'location' => '',
-			'url' => ''
-		);
-		
-		if (preg_match('/UID[:\s]+(.*?)(?:\r\n|\n|$)/i', $vevent_normalized, $matches)) {
-			$event['uid'] = trim($matches[1]);
-		}
-		if (preg_match('/SUMMARY[:\s]+(.*?)(?:\r\n|\n|$)/i', $vevent_normalized, $matches)) {
-			$event['summary'] = trim($matches[1]);
-		}
-		if (preg_match('/DESCRIPTION[:\s]+(.*?)(?:\r\n|\n|$)/i', $vevent_normalized, $matches)) {
-			$event['description'] = trim($matches[1]);
-		}
-		if (preg_match('/LOCATION[:\s]+(.*?)(?:\r\n|\n|$)/i', $vevent_normalized, $matches)) {
-			$event['location'] = trim($matches[1]);
-		}
-		if (preg_match('/URL[:\s]+(.*?)(?:\r\n|\n|$)/i', $vevent_normalized, $matches)) {
-			$event['url'] = trim($matches[1]);
-		}
-			
-			// Extraire les dates (gérer les paramètres comme VALUE=DATE)
-			if (preg_match('/DTSTART(?:;.*?)?[:\s]+([^\r\n]+)/i', $vevent_normalized, $matches)) {
-				$date_str = trim($matches[1]);
-				$event['start'] = $this->parseICalendarDate($date_str);
-				if (!$event['start']) {
-					dol_syslog("CalDAV parseICalendar: Impossible de parser DTSTART: ".$date_str, LOG_WARNING);
+		// XML decoding belongs to the XML reader, never to the embedded TEXT values.
+		$ical_data = preg_replace('/\r?\n[ \t]/', '', $ical_data);
+		preg_match_all('/^BEGIN:VEVENT\r?\n.*?^END:VEVENT\r?$/msi', $ical_data, $matches);
+		foreach ($matches[0] as $vevent) {
+			$event = array('etag' => $etag, 'uid' => '', 'summary' => '', 'description' => '',
+				'location' => '', 'url' => '', 'start' => null, 'end' => null, 'all_day' => false,
+				'last_modified' => null, 'raw_ical' => $vevent, 'unsupported_recurrence' => false);
+			$properties = array();
+			$componentDepth = 0;
+			foreach (preg_split('/\r?\n/', $vevent) as $line) {
+				if (stripos($line, 'BEGIN:') === 0) {
+					$componentDepth++;
+					continue;
+				}
+				if (stripos($line, 'END:') === 0) {
+					$componentDepth--;
+					continue;
+				}
+				if ($componentDepth !== 1 || !preg_match('/^([A-Z-]+)((?:;[^:]*)?):(.*)$/i', $line, $property)) {
+					continue;
+				}
+				$name = strtoupper($property[1]);
+				$properties[$name] = array($property[2], $property[3]);
+			}
+			foreach (array('UID' => 'uid', 'SUMMARY' => 'summary', 'DESCRIPTION' => 'description', 'LOCATION' => 'location', 'URL' => 'url') as $name => $key) {
+				if (isset($properties[$name])) {
+					$event[$key] = preg_replace_callback('/\\\\([nN,;\\\\])/', static function ($m) {
+						return strtolower($m[1]) === 'n' ? "\n" : $m[1];
+					}, $properties[$name][1]);
 				}
 			}
-			if (preg_match('/DTEND(?:;.*?)?[:\s]+([^\r\n]+)/i', $vevent_normalized, $matches)) {
-				$date_str = trim($matches[1]);
-				$event['end'] = $this->parseICalendarDate($date_str);
-				if (!$event['end']) {
-					dol_syslog("CalDAV parseICalendar: Impossible de parser DTEND: ".$date_str, LOG_WARNING);
+			$event['unsupported_recurrence'] = isset($properties['RRULE']) || isset($properties['RDATE']) || isset($properties['EXDATE']) || isset($properties['RECURRENCE-ID']);
+			foreach (array('DTSTART' => 'start', 'DTEND' => 'end', 'LAST-MODIFIED' => 'last_modified') as $name => $key) {
+				if (isset($properties[$name])) {
+					$event[$key] = $this->parseICalendarDate($properties[$name][1], $properties[$name][0]);
 				}
 			}
-			
-		// Validation: un événement doit avoir au minimum un UID et une date de début
-		// On ignore les événements sans titre ET sans date de début (probablement des fragments mal parsés)
-		if (!empty($event['uid']) && $event['start'] !== null) {
+			if (!$event['start'] || $event['uid'] === '') {
+				throw new UnexpectedValueException('Invalid CalDAV VEVENT UID or DTSTART');
+			}
+			$event['all_day'] = preg_match('/^\d{8}$/', $properties['DTSTART'][1]) === 1;
+			if (isset($properties['DTEND']) && (!$event['end'] || $event['all_day'] !== (preg_match('/^\d{8}$/', $properties['DTEND'][1]) === 1))) {
+				throw new UnexpectedValueException('Invalid CalDAV DTEND');
+			}
+			if (!$event['end']) {
+				$event['end'] = clone $event['start'];
+				if ($event['all_day']) {
+					$event['end']->modify('+1 day');
+				}
+				if (isset($properties['DURATION'])) {
+					throw new UnexpectedValueException('CalDAV DURATION is not supported');
+				}
+			}
+			if ($event['end'] < $event['start'] || ($event['all_day'] && $event['end'] == $event['start'])) {
+				throw new UnexpectedValueException('CalDAV DTEND precedes DTSTART');
+			}
 			$events[] = $event;
-		} elseif (getDolGlobalInt('SYSLOG_LEVEL') >= LOG_WARNING) {
-			// Logs de débogage uniquement si le niveau de log est élevé
-			if (empty($event['uid'])) {
-				dol_syslog("CalDAV parseICalendar: Événement ignoré (pas d'UID)", LOG_WARNING);
-			} else {
-				dol_syslog("CalDAV parseICalendar: Événement ignoré (pas de date de début valide) - UID: ".$event['uid'], LOG_WARNING);
-			}
 		}
-		}
-		
 		return $events;
 	}
 
-	/**
-	 * Parser une date au format iCalendar
-	 *
-	 * @param  string $date_str   Chaîne de date iCalendar
-	 * @return DateTime|null      Objet DateTime ou null
-	 */
-	private function parseICalendarDate($date_str)
+	/** Parse without PHP date normalization or dependence on the process timezone. */
+	private function parseICalendarDate($date_str, $parameters = '')
 	{
-		// Format de base: YYYYMMDDTHHMMSSZ ou YYYYMMDD
-		if (preg_match('/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?$/', $date_str, $matches)) {
-			$year = (int) $matches[1];
-			$month = (int) $matches[2];
-			$day = (int) $matches[3];
-			$hour = isset($matches[4]) ? (int) $matches[4] : 0;
-			$minute = isset($matches[5]) ? (int) $matches[5] : 0;
-			$second = isset($matches[6]) ? (int) $matches[6] : 0;
-			$is_utc = isset($matches[7]) && $matches[7] == 'Z';
-			
-			try {
-				$date = new DateTime();
-				$date->setDate($year, $month, $day);
-				$date->setTime($hour, $minute, $second);
-				if ($is_utc) {
-					$date->setTimezone(new DateTimeZone('UTC'));
-				}
-				return $date;
-			} catch (Exception $e) {
-				return null;
-			}
+		$isDate = preg_match('/^\d{8}$/', $date_str) === 1;
+		if (!$isDate && !preg_match('/^\d{8}T\d{6}Z?$/', $date_str)) {
+			return null;
 		}
-		
-		return null;
+		if (preg_match('/;VALUE=([^;]+)/i', $parameters, $valueType) && strtoupper($valueType[1]) !== ($isDate ? 'DATE' : 'DATE-TIME')) {
+			return null;
+		}
+		$tzid = getDolGlobalString('MAIN_DOLIBARR_USER_TIMEZONE', '') ?: date_default_timezone_get();
+		if ($isDate || substr($date_str, -1) === 'Z') {
+			$tzid = 'UTC';
+		} elseif (preg_match('/;TZID=("[^"]+"|[^;]+)/i', $parameters, $zone)) {
+			$tzid = trim($zone[1], '"');
+		}
+		try {
+			$format = $isDate ? 'Ymd' : 'Ymd\\THis'.(substr($date_str, -1) === 'Z' ? '\\Z' : '');
+			$date = DateTime::createFromFormat('!'.$format, $date_str, new DateTimeZone($tzid));
+			$errors = DateTime::getLastErrors();
+			return $date && (!$errors || (!$errors['warning_count'] && !$errors['error_count'])) && $date->format($format) === $date_str ? $date : null;
+		} catch (Exception $e) {
+			return null;
+		}
 	}
 }

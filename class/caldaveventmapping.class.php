@@ -32,6 +32,7 @@ class CalDAVEventMapping extends CommonObject
 	public $last_sync_date;
 	public $last_sync_direction;
 	public $caldav_etag;
+	public $local_sync_hash;
 	public $date_creation;
 	public $tms;
 
@@ -53,36 +54,28 @@ class CalDAVEventMapping extends CommonObject
 	 * @param  int    $fk_calendar    ID calendrier CalDAV
 	 * @param  string $direction      Direction sync ('dolibarr' ou 'caldav')
 	 * @param  string $etag           ETag CalDAV (optionnel)
+	 * @param  string $local_sync_hash Last synchronized native content hash
 	 * @return int                    <0 si KO, >0 si OK
 	 */
-	public function create($fk_actioncomm, $caldav_uid, $fk_calendar, $direction = 'dolibarr', $etag = null)
+	public function create($fk_actioncomm, $caldav_uid, $fk_calendar, $direction = 'dolibarr', $etag = null, $local_sync_hash = null)
 	{
 		$now = dol_now();
 
-		// Important: on utilise ON DUPLICATE KEY pour éviter les erreurs fatales
-		// si un mapping existe déjà pour le couple (fk_actioncomm, fk_calendar).
-		// Cela rend la synchronisation idempotente (rejouable sans crash).
 		$sql = "INSERT INTO ".MAIN_DB_PREFIX."caldav_event_mapping";
-		$sql .= " (fk_actioncomm, caldav_uid, fk_calendar, last_sync_date, last_sync_direction, caldav_etag, date_creation)";
+		$sql .= " (fk_actioncomm, caldav_uid, fk_calendar, last_sync_date, last_sync_direction, caldav_etag, local_sync_hash, date_creation)";
 		$sql .= " VALUES";
-		$sql .= " (".((int) $fk_actioncomm).", '".$this->db->escape($caldav_uid)."', ".((int) $fk_calendar).", '".$this->db->idate($now)."', '".$this->db->escape($direction)."', ".($etag ? "'".$this->db->escape($etag)."'" : "NULL").", '".$this->db->idate($now)."')";
-		$sql .= " ON DUPLICATE KEY UPDATE";
-		$sql .= " rowid = LAST_INSERT_ID(rowid),";
-		$sql .= " caldav_uid = VALUES(caldav_uid),";
-		$sql .= " last_sync_date = VALUES(last_sync_date),";
-		$sql .= " last_sync_direction = VALUES(last_sync_direction),";
-		$sql .= " caldav_etag = VALUES(caldav_etag)";
+		$sql .= " (".((int) $fk_actioncomm).", '".$this->db->escape($caldav_uid)."', ".((int) $fk_calendar).", '".$this->db->idate($now)."', '".$this->db->escape($direction)."', ".($etag ? "'".$this->db->escape($etag)."'" : "NULL").", ".($local_sync_hash ? "'".$this->db->escape($local_sync_hash)."'" : "NULL").", '".$this->db->idate($now)."')";
 
 		$resql = $this->db->query($sql);
 		if ($resql) {
 			$this->rowid = $this->db->last_insert_id(MAIN_DB_PREFIX."caldav_event_mapping");
-			// Remplir l'objet avec les bonnes valeurs (utile si c'était un doublon)
 			$this->fk_actioncomm = (int) $fk_actioncomm;
 			$this->caldav_uid = $caldav_uid;
 			$this->fk_calendar = (int) $fk_calendar;
 			$this->last_sync_date = $now;
 			$this->last_sync_direction = $direction;
 			$this->caldav_etag = $etag;
+			$this->local_sync_hash = $local_sync_hash;
 			$this->date_creation = $now;
 			return $this->rowid;
 		} else {
@@ -96,9 +89,10 @@ class CalDAVEventMapping extends CommonObject
 	 *
 	 * @param  string $direction  Direction sync
 	 * @param  string $etag       ETag CalDAV (optionnel)
+	 * @param  string $local_sync_hash Last synchronized native content hash
 	 * @return int                <0 si KO, >0 si OK
 	 */
-	public function update($direction = null, $etag = null)
+	public function update($direction = null, $etag = null, $local_sync_hash = null)
 	{
 		$now = dol_now();
 
@@ -109,6 +103,9 @@ class CalDAVEventMapping extends CommonObject
 		}
 		if ($etag !== null) {
 			$sql .= ", caldav_etag = '".$this->db->escape($etag)."'";
+		}
+		if ($local_sync_hash !== null) {
+			$sql .= ", local_sync_hash = '".$this->db->escape($local_sync_hash)."'";
 		}
 		$sql .= " WHERE rowid = ".((int) $this->rowid);
 
@@ -129,7 +126,7 @@ class CalDAVEventMapping extends CommonObject
 	 */
 	public function fetchByActionComm($fk_actioncomm)
 	{
-		$sql = "SELECT rowid, fk_actioncomm, caldav_uid, fk_calendar, last_sync_date, last_sync_direction, caldav_etag, date_creation";
+		$sql = "SELECT rowid, fk_actioncomm, caldav_uid, fk_calendar, last_sync_date, last_sync_direction, caldav_etag, local_sync_hash, date_creation";
 		$sql .= " FROM ".MAIN_DB_PREFIX."caldav_event_mapping";
 		$sql .= " WHERE fk_actioncomm = ".((int) $fk_actioncomm);
 		$sql .= " ORDER BY rowid ASC";
@@ -146,6 +143,7 @@ class CalDAVEventMapping extends CommonObject
 				$this->last_sync_date = $this->db->jdate($obj->last_sync_date);
 				$this->last_sync_direction = $obj->last_sync_direction;
 				$this->caldav_etag = $obj->caldav_etag;
+				$this->local_sync_hash = $obj->local_sync_hash;
 				$this->date_creation = $this->db->jdate($obj->date_creation);
 				return 1;
 			}
@@ -165,7 +163,7 @@ class CalDAVEventMapping extends CommonObject
 	 */
 	public function fetchByActionCommAndCalendar($fk_actioncomm, $fk_calendar)
 	{
-		$sql = "SELECT rowid, fk_actioncomm, caldav_uid, fk_calendar, last_sync_date, last_sync_direction, caldav_etag, date_creation";
+		$sql = "SELECT rowid, fk_actioncomm, caldav_uid, fk_calendar, last_sync_date, last_sync_direction, caldav_etag, local_sync_hash, date_creation";
 		$sql .= " FROM ".MAIN_DB_PREFIX."caldav_event_mapping";
 		$sql .= " WHERE fk_actioncomm = ".((int) $fk_actioncomm);
 		$sql .= " AND fk_calendar = ".((int) $fk_calendar);
@@ -181,6 +179,7 @@ class CalDAVEventMapping extends CommonObject
 				$this->last_sync_date = $this->db->jdate($obj->last_sync_date);
 				$this->last_sync_direction = $obj->last_sync_direction;
 				$this->caldav_etag = $obj->caldav_etag;
+				$this->local_sync_hash = $obj->local_sync_hash;
 				$this->date_creation = $this->db->jdate($obj->date_creation);
 				return 1;
 			}
@@ -200,7 +199,7 @@ class CalDAVEventMapping extends CommonObject
 	 */
 	public static function getAllByActionComm($db, $fk_actioncomm)
 	{
-		$sql = "SELECT rowid, fk_actioncomm, caldav_uid, fk_calendar, last_sync_date, last_sync_direction, caldav_etag, date_creation";
+		$sql = "SELECT rowid, fk_actioncomm, caldav_uid, fk_calendar, last_sync_date, last_sync_direction, caldav_etag, local_sync_hash, date_creation";
 		$sql .= " FROM ".MAIN_DB_PREFIX."caldav_event_mapping";
 		$sql .= " WHERE fk_actioncomm = ".((int) $fk_actioncomm);
 		$sql .= " ORDER BY fk_calendar ASC, rowid ASC";
@@ -220,6 +219,7 @@ class CalDAVEventMapping extends CommonObject
 					$map->last_sync_date = $db->jdate($obj->last_sync_date);
 					$map->last_sync_direction = $obj->last_sync_direction;
 					$map->caldav_etag = $obj->caldav_etag;
+					$map->local_sync_hash = $obj->local_sync_hash;
 					$map->date_creation = $db->jdate($obj->date_creation);
 					$mappings[] = $map;
 				}
@@ -238,7 +238,7 @@ class CalDAVEventMapping extends CommonObject
 	 */
 	public function fetchByCalDAVUID($caldav_uid, $fk_calendar)
 	{
-		$sql = "SELECT rowid, fk_actioncomm, caldav_uid, fk_calendar, last_sync_date, last_sync_direction, caldav_etag, date_creation";
+		$sql = "SELECT rowid, fk_actioncomm, caldav_uid, fk_calendar, last_sync_date, last_sync_direction, caldav_etag, local_sync_hash, date_creation";
 		$sql .= " FROM ".MAIN_DB_PREFIX."caldav_event_mapping";
 		$sql .= " WHERE caldav_uid = '".$this->db->escape($caldav_uid)."'";
 		$sql .= " AND fk_calendar = ".((int) $fk_calendar);
@@ -254,6 +254,7 @@ class CalDAVEventMapping extends CommonObject
 				$this->last_sync_date = $this->db->jdate($obj->last_sync_date);
 				$this->last_sync_direction = $obj->last_sync_direction;
 				$this->caldav_etag = $obj->caldav_etag;
+				$this->local_sync_hash = $obj->local_sync_hash;
 				$this->date_creation = $this->db->jdate($obj->date_creation);
 				return 1;
 			}
@@ -311,13 +312,14 @@ class CalDAVEventMapping extends CommonObject
 	 */
 	public static function getAllByCalendar($db, $fk_calendar)
 	{
-		$sql = "SELECT rowid, fk_actioncomm, caldav_uid, fk_calendar, last_sync_date, last_sync_direction, caldav_etag, date_creation";
+		$sql = "SELECT rowid, fk_actioncomm, caldav_uid, fk_calendar, last_sync_date, last_sync_direction, caldav_etag, local_sync_hash, date_creation";
 		$sql .= " FROM ".MAIN_DB_PREFIX."caldav_event_mapping";
 		$sql .= " WHERE fk_calendar = ".((int) $fk_calendar);
 		$sql .= " ORDER BY last_sync_date DESC";
 
 		$mappings = array();
 		$resql = $db->query($sql);
+		if (!$resql) throw new RuntimeException($db->lasterror());
 		if ($resql) {
 			$num = $db->num_rows($resql);
 			for ($i = 0; $i < $num; $i++) {
@@ -330,6 +332,7 @@ class CalDAVEventMapping extends CommonObject
 				$mapping->last_sync_date = $db->jdate($obj->last_sync_date);
 				$mapping->last_sync_direction = $obj->last_sync_direction;
 				$mapping->caldav_etag = $obj->caldav_etag;
+				$mapping->local_sync_hash = $obj->local_sync_hash;
 				$mapping->date_creation = $db->jdate($obj->date_creation);
 				$mappings[] = $mapping;
 			}
