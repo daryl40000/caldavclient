@@ -31,14 +31,10 @@ trait CalDAVSyncInboundTrait
 		// Créer le client CalDAV
 		$client = new CalDAVClient($connection);
 
-		// Récupérer les événements CalDAV (6 mois passés → 12 mois futurs)
-		$start = new DateTime();
-		$start->modify('-6 months');
-		$end = new DateTime();
-		$end->modify('+12 months');
+		// A complete calendar inventory is required to detect deletions safely.
 
 		try {
-			$events = $client->getEvents($calendar->url, $start, $end, false); // Pas de cache pour la sync
+			$events = $client->getEvents($calendar->url, null, null, false, true); // Pas de cache pour la sync
 		} catch (Exception $e) {
 			$this->error = $e->getMessage();
 			dol_syslog("CalDAVSync::syncCalDAVToDolibarr - Erreur: ".$this->error, LOG_ERR);
@@ -69,6 +65,9 @@ trait CalDAVSyncInboundTrait
 
 		// Gérer les suppressions (événements dans Dolibarr mais plus sur CalDAV)
 		$deleted_count = $this->handleDeletedCalDAVEvents($calendar, $events);
+		if ($deleted_count < 0) {
+			return -1;
+		}
 		
 		dol_syslog("CalDAVSync::syncCalDAVToDolibarr - Terminé: ".$synced_count." synchronisé(s), ".$deleted_count." supprimé(s)", LOG_INFO);
 
@@ -233,7 +232,7 @@ trait CalDAVSyncInboundTrait
 		$actioncomm->percentage = -1; // Non applicable
 		
 		// Créer l'événement
-		$result = $actioncomm->create($user);
+		$result = $actioncomm->create($user, 1);
 
 		if ($result > 0) {
 			// Créer le mapping
@@ -291,7 +290,7 @@ trait CalDAVSyncInboundTrait
 		$actioncomm->fulldayevent = !empty($event['all_day']) ? 1 : 0;
 
 		// Mettre à jour l'événement
-		$result = $actioncomm->update($user);
+		$result = $actioncomm->update($user, 1);
 
 		if ($result > 0) {
 			// Mettre à jour le mapping
@@ -335,9 +334,12 @@ trait CalDAVSyncInboundTrait
 				// Charger et supprimer l'événement Dolibarr
 				$actioncomm = new ActionComm($this->db);
 				if ($actioncomm->fetch($mapping->fk_actioncomm) > 0) {
-					$result = $actioncomm->delete($user);
+					$result = $actioncomm->delete($user, 1);
 					if ($result > 0) {
-						// Le mapping sera supprimé automatiquement (CASCADE)
+						if ($mapping->delete() < 0) {
+							$this->error = $mapping->error;
+							return -1;
+						}
 						$deleted_count++;
 					}
 				}

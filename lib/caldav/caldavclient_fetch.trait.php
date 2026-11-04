@@ -29,9 +29,10 @@ trait CalDAVClientFetchTrait
 	 * @param  string   $calendar_url   URL du calendrier
 	 * @param  DateTime $start          Date de début
 	 * @param  DateTime $end           Date de fin
+	 * @param  bool     $complete       Retrieve the complete calendar inventory for deletion detection
 	 * @return array                    Tableau d'événements au format iCalendar
 	 */
-	public function getEvents($calendar_url = null, $start = null, $end = null, $use_cache = true)
+	public function getEvents($calendar_url = null, $start = null, $end = null, $use_cache = true, $complete = false)
 	{
 		global $conf;
 		
@@ -57,7 +58,7 @@ trait CalDAVClientFetchTrait
 		}
 		
 	// Générer une clé de cache basée sur l'URL et la période
-	$cache_key = md5($url . $start->format('Ymd') . $end->format('Ymd'));
+	$cache_key = md5($url . ($complete ? 'complete' : $start->format('Ymd') . $end->format('Ymd')));
 	$cache_dir = DOL_DATA_ROOT . '/caldavclient/cache';
 	if (!is_dir($cache_dir)) {
 		@mkdir($cache_dir, 0755, true);
@@ -97,7 +98,9 @@ trait CalDAVClientFetchTrait
 		$xml .= '<C:filter>';
 		$xml .= '<C:comp-filter name="VCALENDAR">';
 		$xml .= '<C:comp-filter name="VEVENT">';
-		$xml .= '<C:time-range start="'.$start_str.'" end="'.$end_str.'"/>';
+		if (!$complete) {
+			$xml .= '<C:time-range start="'.$start_str.'" end="'.$end_str.'"/>';
+		}
 		$xml .= '</C:comp-filter>';
 		$xml .= '</C:comp-filter>';
 		$xml .= '</C:filter>';
@@ -135,7 +138,7 @@ trait CalDAVClientFetchTrait
 		if ($response['code'] >= 200 && $response['code'] < 300) {
 			if (empty($response['body'])) {
 				dol_syslog("CalDAV getEvents: Réponse vide (code ".$response['code'].")", LOG_WARNING);
-				return array();
+				throw new RuntimeException("CalDAV REPORT returned an empty response");
 			}
 			
 			// Sauvegarder un extrait de la réponse pour déboguer (uniquement si beaucoup de logs activés)
@@ -154,7 +157,7 @@ trait CalDAVClientFetchTrait
 			return $events;
 		} else {
 			dol_syslog("CalDAV getEvents: Erreur HTTP ".$response['code']." - Réponse: ".substr($response['body'], 0, 500), LOG_WARNING);
-			return array();
+			throw new RuntimeException("CalDAV REPORT failed (HTTP ".((int) $response['code']).")");
 		}
 	}
 
@@ -170,7 +173,7 @@ trait CalDAVClientFetchTrait
 		
 		if (empty($xml_body)) {
 			dol_syslog("CalDAV parseCalendarResponse: Corps XML vide", LOG_WARNING);
-			return $events;
+			throw new RuntimeException("CalDAV REPORT returned empty XML");
 		}
 		
 		// Parser le XML
@@ -186,7 +189,12 @@ trait CalDAVClientFetchTrait
 			libxml_clear_errors();
 			dol_syslog("CalDAV parseCalendarResponse: Erreur de parsing XML - ".$error_msg, LOG_WARNING);
 			dol_syslog("CalDAV parseCalendarResponse: Extrait XML (500 premiers caractères) = ".substr($xml_body, 0, 500), LOG_DEBUG);
-			return $events;
+			throw new RuntimeException("Invalid CalDAV REPORT XML");
+		}
+
+		$root = dom_import_simplexml($xml);
+		if ($root->localName !== 'multistatus' || $root->namespaceURI !== 'DAV:') {
+			throw new RuntimeException("CalDAV REPORT is not a DAV multistatus");
 		}
 		
 		// Enregistrer les namespaces
@@ -208,6 +216,12 @@ trait CalDAVClientFetchTrait
 			$response->registerXPathNamespace('d', 'DAV:');
 			$response->registerXPathNamespace('c', 'urn:ietf:params:xml:ns:caldav');
 			
+			foreach ($response->xpath('.//d:status') as $status) {
+				if (!preg_match('/^HTTP\/\S+ 2\d\d(?: |$)/', trim((string) $status))) {
+					throw new RuntimeException("CalDAV REPORT contains a failed resource");
+				}
+			}
+
 			// Récupérer l'ETag
 			$etag = '';
 			$etag_nodes = $response->xpath('.//d:getetag');
@@ -242,9 +256,13 @@ trait CalDAVClientFetchTrait
 				// Parser les événements depuis les données iCalendar
 				$parsed_events = $this->parseICalendar($ical_data, $etag);
 				dol_syslog("CalDAV parseCalendarResponse: ".count($parsed_events)." événement(s) parsé(s) depuis ".$href, LOG_DEBUG);
+				preg_match_all('/BEGIN:VEVENT/i', $ical_data, $components);
+				if (count($parsed_events) !== count($components[0]) || empty($parsed_events)) {
+					throw new RuntimeException("CalDAV REPORT contains unparseable events");
+				}
 				$events = array_merge($events, $parsed_events);
 			} else {
-				dol_syslog("CalDAV parseCalendarResponse: Aucune donnée calendar-data trouvée pour ".$href, LOG_DEBUG);
+				throw new RuntimeException("CalDAV REPORT resource has no calendar-data");
 			}
 		}
 		
