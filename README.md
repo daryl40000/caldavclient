@@ -1,5 +1,7 @@
 # Module CalDAV Client pour Dolibarr
 
+Français | [English](README_EN.md)
+
 ![Version](https://img.shields.io/badge/version-0.22.1-blue.svg)
 ![License](https://img.shields.io/badge/license-GPL--3.0%2B-green.svg)
 ![Dolibarr](https://img.shields.io/badge/Dolibarr-16.0%2B-orange.svg)
