@@ -48,7 +48,7 @@ class InterfaceCalDAvClientTrigger extends DolibarrTriggers
 	 */
 	public function runTrigger($action, $object, $user, $langs, $conf)
 	{
-		if (empty($conf->caldavclient->enabled)) {
+		if (empty($conf->caldavclient->enabled) || empty($conf->global->CALDAVCLIENT_AUTO_SYNC_ENABLED)) {
 			return 0;
 		}
 
@@ -105,12 +105,12 @@ class InterfaceCalDAvClientTrigger extends DolibarrTriggers
 			$res = $sync->syncOneActioncommToCalDAV((int) $object->id);
 			if ($res < 0) {
 				dol_syslog("CalDAVClientTrigger: Erreur sync (create) ".$sync->error, LOG_ERR);
-				return -1;
+				return 0;
 			}
 			dol_syslog("CalDAVClientTrigger: Événement synchronisé (create) ID ".$object->id, LOG_INFO);
 		} catch (Throwable $e) {
 			dol_syslog("CalDAVClientTrigger: Exception sync (create) ".$e->getMessage(), LOG_ERR);
-			return -1;
+			return 0;
 		}
 		
 		return 1;
@@ -136,12 +136,12 @@ class InterfaceCalDAvClientTrigger extends DolibarrTriggers
 			$res = $sync->syncOneActioncommToCalDAV((int) $object->id, 0);
 			if ($res < 0) {
 				dol_syslog("CalDAVClientTrigger: Erreur sync (modify) ".$sync->error, LOG_ERR);
-				return -1;
+				return 0;
 			}
 			dol_syslog("CalDAVClientTrigger: Événement synchronisé (modify) ID ".$object->id, LOG_INFO);
 		} catch (Throwable $e) {
 			dol_syslog("CalDAVClientTrigger: Exception sync (modify) ".$e->getMessage(), LOG_ERR);
-			return -1;
+			return 0;
 		}
 
 		return 1;
@@ -161,70 +161,12 @@ class InterfaceCalDAvClientTrigger extends DolibarrTriggers
 
 		// Multi-calendriers: un événement peut avoir plusieurs mappings
 		$mappings = CalDAVEventMapping::getAllByActionComm($this->db, (int) $object->id);
-
-		if (!empty($mappings)) {
-			$all_ok = true;
-			foreach ($mappings as $mapping) {
-				$delete_ok = false;
-				try {
-					dol_include_once('/caldavclient/class/caldavcalendar.class.php');
-					dol_include_once('/caldavclient/class/caldavclient.class.php');
-					dol_include_once('/caldavclient/lib/caldav.lib.php');
-
-					// Charger le calendrier (pour avoir l'URL exacte du calendrier)
-					$calendar = new CalDAVCalendar($this->db);
-					if ($calendar->fetch($mapping->fk_calendar) > 0) {
-						// Charger la connexion
-						$connection = new CalDAVConnection($this->db);
-						if ($connection->fetch($calendar->fk_connection) > 0) {
-							// Créer le client
-							$client = new CalDAVClient($connection);
-
-							// Supprimer l'événement sur CalDAV (sur l'URL du calendrier)
-							$etag = !empty($mapping->caldav_etag) ? $mapping->caldav_etag : null;
-							$resDel = $client->deleteEventOnCalendar($calendar->url, $mapping->caldav_uid, $etag);
-
-							if (!empty($resDel['success'])) {
-								dol_syslog("CalDAVClientTrigger: Événement supprimé sur CalDAV (UID ".$mapping->caldav_uid.", cal=".$calendar->id.")", LOG_INFO);
-								$delete_ok = true;
-							} else {
-								$code = isset($resDel['code']) ? (int) $resDel['code'] : 0;
-								$url = !empty($resDel['url']) ? $resDel['url'] : '';
-								dol_syslog("CalDAVClientTrigger: Erreur suppression sur CalDAV (HTTP ".$code.") UID ".$mapping->caldav_uid." URL ".$url, LOG_WARNING);
-							}
-						} else {
-							dol_syslog("CalDAVClientTrigger: Suppression CalDAV impossible - connexion introuvable (fk_connection=".$calendar->fk_connection.")", LOG_WARNING);
-						}
-					} else {
-						dol_syslog("CalDAVClientTrigger: Suppression CalDAV impossible - calendrier introuvable (fk_calendar=".$mapping->fk_calendar.")", LOG_WARNING);
-					}
-				} catch (Throwable $e) {
-					dol_syslog("CalDAVClientTrigger: Exception suppression CalDAV ".$e->getMessage(), LOG_ERR);
-				}
-
-				// IMPORTANT: Ne supprimer le mapping QUE si la suppression côté CalDAV a réussi.
-				if ($delete_ok) {
-					$mapping->delete();
-				} else {
-					$all_ok = false;
-				}
+		foreach ($mappings as $mapping) {
+			$sync = new CalDAVSync($this->db);
+			if ($sync->syncCalendar($mapping->fk_calendar, 'bidirectional', (int) $object->id) < 0) {
+				dol_syslog('CalDAV deletion deferred: '.$sync->error, LOG_ERR);
 			}
-
-			if (!$all_ok) {
-				return -1;
-			}
-		} else {
-			// Cas courant si la table llx_caldav_event_mapping a une FK fk_actioncomm avec "ON DELETE CASCADE":
-			// le mapping est effacé automatiquement au moment du DELETE SQL sur llx_actioncomm,
-			// donc le trigger ne peut plus retrouver l'UID CalDAV à supprimer.
-			dol_syslog(
-				"CalDAVClientTrigger: Aucun mapping trouvé pour l'actioncomm ID ".$object->id
-				." (suppression CalDAV non possible). Si llx_caldav_event_mapping.fk_actioncomm est en ON DELETE CASCADE,"
-				." il faut retirer ce CASCADE pour permettre la propagation de la suppression.",
-				LOG_WARNING
-			);
 		}
-
-		return 1;
+		return 0;
 	}
 }

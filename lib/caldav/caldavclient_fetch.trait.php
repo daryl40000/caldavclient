@@ -260,6 +260,11 @@ trait CalDAVClientFetchTrait
 				if (count($parsed_events) !== count($components[0]) || empty($parsed_events)) {
 					throw new RuntimeException("CalDAV REPORT contains unparseable events");
 				}
+				foreach ($parsed_events as &$parsed_event) {
+					$parsed_event['href'] = $href;
+					$parsed_event['raw_calendar_data'] = $ical_data;
+				}
+				unset($parsed_event);
 				$events = array_merge($events, $parsed_events);
 			} else {
 				throw new RuntimeException("CalDAV REPORT resource has no calendar-data");

@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS llx_caldav_event_mapping
     last_sync_date      DATETIME NOT NULL COMMENT 'Date de la dernière synchronisation',
     last_sync_direction VARCHAR(20) DEFAULT 'dolibarr' COMMENT 'Dernier maître de la synchronisation (dolibarr/caldav)',
     caldav_etag         VARCHAR(255) DEFAULT NULL COMMENT 'ETag CalDAV pour détecter les modifications',
+    local_sync_hash     VARCHAR(64) DEFAULT NULL,
     date_creation       DATETIME NOT NULL,
     tms                 TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     

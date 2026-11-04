@@ -257,7 +257,9 @@ class modCalDAvClient extends DolibarrModules
 
 		// Appliquer automatiquement les correctifs SQL nécessaires (sans action manuelle).
 		// Important: on ne doit pas dépendre d'un script SQL "update_*.sql" lancé dans un ordre de tri.
-		$this->applyDatabaseFixes();
+		if ($this->applyDatabaseFixes() < 0) {
+			return -1;
+		}
 
 		return $this->_init($sql, $options);
 	}
@@ -265,7 +267,7 @@ class modCalDAvClient extends DolibarrModules
 	/**
 	 * Appliquer des correctifs de schéma (idempotents)
 	 *
-	 * @return void
+	 * @return int 1=OK, -1=failed
 	 */
 	private function applyDatabaseFixes()
 	{
@@ -277,6 +279,13 @@ class modCalDAvClient extends DolibarrModules
 		$this->ensureCalDAVCalendarsSchema();
 		$this->removeEventMappingActioncommForeignKey();
 		$this->ensureEventMappingMultiCalendarIndex();
+		$mappingTable = MAIN_DB_PREFIX.'caldav_event_mapping';
+		if (!$this->dbColumnExists($mappingTable, 'local_sync_hash')
+			&& !$this->db->query('ALTER TABLE '.$mappingTable.' ADD COLUMN local_sync_hash VARCHAR(64) DEFAULT NULL')) {
+			$this->error = $this->db->lasterror();
+			return -1;
+		}
+		return 1;
 	}
 
 	/**

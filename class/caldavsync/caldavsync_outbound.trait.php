@@ -98,9 +98,10 @@ trait CalDAVSyncOutboundTrait
 	 *
 	 * @param  int    $calendar_id  ID du calendrier
 	 * @param  string $sync_mode    Mode de synchronisation
+	 * @param  int    $only_actioncomm Restrict bidirectional hook work to one native event
 	 * @return int                  Nombre d'événements synchronisés, <0 si erreur
 	 */
-	public function syncCalendar($calendar_id, $sync_mode = null)
+	public function syncCalendar($calendar_id, $sync_mode = null, $only_actioncomm = 0)
 	{
 		global $conf, $user;
 
@@ -119,6 +120,9 @@ trait CalDAVSyncOutboundTrait
 			return -1;
 		}
 
+		if ((int) $calendar->entity !== (int) $conf->entity) {
+			$this->error = 'Calendar belongs to another entity'; return -1;
+		}
 		if (!$calendar->enabled) {
 			dol_syslog("CalDAVSync::syncCalendar - Calendrier désactivé", LOG_DEBUG);
 			return 0;
@@ -128,30 +132,31 @@ trait CalDAVSyncOutboundTrait
 		$connection = new CalDAVConnection($this->db);
 		$result = $connection->fetch($calendar->fk_connection);
 		
-		if ($result <= 0 || !$connection->enabled) {
+		if ($result <= 0 || !$connection->enabled || (int) $connection->entity !== (int) $conf->entity) {
 			$this->error = "Connexion invalide ou désactivée";
 			return -1;
 		}
 
-		// Exécuter la synchronisation selon le mode
-		$synced_count = 0;
-		
-		switch ($sync_mode) {
-			case 'dolibarr_to_caldav':
-				$synced_count = $this->syncDolibarrToCalDAV($calendar, $connection);
-				break;
-				
-			case 'caldav_to_dolibarr':
-				$synced_count = $this->syncCalDAVToDolibarr($calendar, $connection);
-				break;
-				
-			case 'bidirectional':
-				$synced_count = $this->syncBidirectional($calendar, $connection);
-				break;
-				
-			default:
-				$this->error = "Mode de synchronisation inconnu: ".$sync_mode;
-				return -1;
+		$lock = 'caldavclient-'.(int) $conf->entity.'-'.(int) $calendar->id;
+		$locked = $this->db->query("SELECT GET_LOCK('".$this->db->escape($lock)."', 0) AS acquired");
+		$state = $locked ? $this->db->fetch_object($locked) : null;
+		if (!$state || (int) $state->acquired !== 1) { $this->error = 'Calendar synchronization is already running'; return -1; }
+		try {
+			switch ($sync_mode) {
+				case 'dolibarr_to_caldav':
+					$synced_count = $this->syncDolibarrToCalDAV($calendar, $connection, $only_actioncomm);
+					break;
+				case 'caldav_to_dolibarr':
+					$synced_count = $this->syncCalDAVToDolibarr($calendar, $connection);
+					break;
+				case 'bidirectional':
+					$synced_count = $this->syncBidirectional($calendar, $connection, $only_actioncomm);
+					break;
+				default:
+					$this->error = 'Unknown synchronization mode'; return -1;
+			}
+		} finally {
+			$this->db->query("SELECT RELEASE_LOCK('".$this->db->escape($lock)."')");
 		}
 
 		return $synced_count;
@@ -243,26 +248,7 @@ trait CalDAVSyncOutboundTrait
 			LOG_DEBUG
 		);
 
-		// Charger la connexion
-		$connection = new CalDAVConnection($this->db);
-		if ($connection->fetch($calendar->fk_connection) <= 0 || empty($connection->enabled)) {
-			$this->error = "Connexion CalDAV invalide ou désactivée";
-			return -1;
-		}
-
-		$client = new CalDAVClient($connection);
-
-		// Mapping existant pour CE calendrier ?
-		$mapping = new CalDAVEventMapping($this->db);
-		$mapping_exists = $mapping->fetchByActionCommAndCalendar($actioncomm->id, $calendar->id);
-
-		if ($mapping_exists > 0) {
-			return $this->updateEventOnCalDAV($actioncomm, $mapping, $calendar, $client);
-		}
-
-		// Création
-		$caldav_uid = $this->generateCalDAVUID($actioncomm->id, (int) $calendar->id);
-		return $this->createEventOnCalDAV($actioncomm, $calendar, $client, $caldav_uid);
+		return $this->syncCalendar($calendar->id, null, (int) $actioncomm->id);
 	}
 
 	/**
@@ -390,7 +376,7 @@ trait CalDAVSyncOutboundTrait
 	 * @param  CalDAVConnection $connection Connexion CalDAV
 	 * @return int                          Nombre d'événements synchronisés, <0 si erreur
 	 */
-	private function syncDolibarrToCalDAV($calendar, $connection)
+	private function syncDolibarrToCalDAV($calendar, $connection, $only_actioncomm = 0)
 	{
 		global $conf, $user;
 
@@ -407,11 +393,15 @@ trait CalDAVSyncOutboundTrait
 		$sql .= " FROM ".MAIN_DB_PREFIX."actioncomm as a";
 		// Exclure les événements natifs automatiques (llx_c_actioncomm.type = 'systemauto')
 		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."c_actioncomm as ca ON ca.id = a.fk_action";
-		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."caldav_event_mapping as m ON a.id = m.fk_actioncomm";
+		$sql .= " LEFT JOIN ".MAIN_DB_PREFIX."caldav_event_mapping as m ON a.id = m.fk_actioncomm AND m.fk_calendar = ".((int) $calendar->id);
 		$sql .= " WHERE a.entity = ".$conf->entity;
 		$sql .= " AND (ca.type IS NULL OR ca.type <> 'systemauto')";
 		// Événements non synchronisés OU modifiés après la dernière sync
-		$sql .= " AND (m.rowid IS NULL OR a.tms > m.last_sync_date)";
+		if ($only_actioncomm) {
+			$sql .= " AND a.id = ".((int) $only_actioncomm);
+		} else {
+			$sql .= " AND (m.rowid IS NULL OR a.tms > m.last_sync_date)";
+		}
 		$sql .= " ORDER BY a.datep ASC";
 		$sql .= " LIMIT 100"; // Limiter pour éviter les timeouts
 
@@ -422,6 +412,7 @@ trait CalDAVSyncOutboundTrait
 		}
 
 		$synced_count = 0;
+		$failed = false;
 		$num = $this->db->num_rows($resql);
 
 		dol_syslog("CalDAVSync::syncDolibarrToCalDAV - ".$num." événement(s) à traiter", LOG_DEBUG);
@@ -438,7 +429,7 @@ trait CalDAVSyncOutboundTrait
 
 			// Vérifier s'il existe déjà un mapping (au moins un) pour cet événement
 			$mapping = new CalDAVEventMapping($this->db);
-			$mapping_exists = $mapping->fetchByActionComm($actioncomm->id);
+			$mapping_exists = $mapping->fetchByActionCommAndCalendar($actioncomm->id, $calendar->id);
 
 			if ($mapping_exists > 0) {
 				// Mise à jour d'un événement existant
@@ -450,11 +441,13 @@ trait CalDAVSyncOutboundTrait
 
 			if ($result > 0) {
 				$synced_count++;
+			} elseif ($result < 0) {
+				$failed = true;
 			}
 		}
 
 		dol_syslog("CalDAVSync::syncDolibarrToCalDAV - Terminé: ".$synced_count." événement(s) synchronisé(s)", LOG_INFO);
 
-		return $synced_count;
+		return $failed ? -1 : $synced_count;
 	}
 }

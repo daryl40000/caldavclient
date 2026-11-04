@@ -61,30 +61,28 @@ trait CalDAVSyncSupportTrait
 	 */
 	private function convertDolibarrToEventArray($actioncomm, $uid, $calendar = null)
 	{
-		// Utiliser le fuseau horaire utilisateur Dolibarr si possible.
-		// Si non défini, on force un défaut France (Europe/Paris) pour éviter le fallback UTC.
-		$tzid = getDolGlobalString('MAIN_DOLIBARR_USER_TIMEZONE', '');
-		if (empty($tzid) || $tzid === 'UTC') {
-			$tzid = 'Europe/Paris';
-		}
-		try {
-			$tz = new DateTimeZone($tzid);
-		} catch (Exception $e) {
-			$tzid = 'UTC';
+		$tzid = getDolGlobalString('MAIN_DOLIBARR_USER_TIMEZONE', '') ?: date_default_timezone_get();
+		$tz = new DateTimeZone($tzid);
+		$all_day = !empty($actioncomm->fulldayevent);
+		// GMT all-day storage contains inclusive UTC day boundaries, not local instants.
+		if ($all_day && getDolGlobalString('MAIN_STORE_FULL_EVENT_IN_GMT', '') === 'gmt') {
 			$tz = new DateTimeZone('UTC');
 		}
-
 		$start_date = new DateTime('@'.((int) $actioncomm->datep));
 		$start_date->setTimezone($tz);
-
-		// Dolibarr peut stocker la date de fin dans datep2 (et mappe vers datef à la lecture).
-		// On sécurise: si datef est vide ou incohérente, on force une durée minimale de 1h.
-		$end_timestamp = !empty($actioncomm->datef) ? (int) $actioncomm->datef : 0;
-		if (empty($end_timestamp) || $end_timestamp <= (int) $actioncomm->datep) {
-			$end_timestamp = (int) $actioncomm->datep + 3600;
+		$end_timestamp = !empty($actioncomm->datef) ? (int) $actioncomm->datef : (int) $actioncomm->datep;
+		if (!$all_day && $end_timestamp < (int) $actioncomm->datep) {
+			throw new UnexpectedValueException('ActionComm end precedes start');
 		}
 		$end_date = new DateTime('@'.$end_timestamp);
 		$end_date->setTimezone($tz);
+		if ($all_day) {
+			$start_day = $start_date->format('Y-m-d');
+			$end_day = $end_date->format('Y-m-d');
+			$start_date = new DateTime($start_day, new DateTimeZone('UTC'));
+			$end_date = new DateTime($end_day, new DateTimeZone('UTC'));
+			$end_date->modify('+1 day');
+		}
 
 		$event_data = array(
 			'uid' => $uid,
@@ -132,12 +130,16 @@ trait CalDAVSyncSupportTrait
 	 */
 	private function generateCalDAVUID($actioncomm_id, $calendar_id = 0)
 	{
-		global $conf, $user;
-		
-		// Format: dolibarr-ENTITY-ID[-CAL]-TIMESTAMP@domain
-		$domain = !empty($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : 'dolibarr.local';
-		$calpart = ($calendar_id > 0) ? ('-cal'.$calendar_id) : '';
-		return 'dolibarr-'.$conf->entity.'-'.$actioncomm_id.$calpart.'-'.time().'@'.$domain;
+		global $conf;
+
+		$instance = getDolGlobalString('MAIN_INSTANCE_UNIQUE_ID', '');
+		if ($instance === '') {
+			$instance = defined('DOL_MAIN_URL_ROOT') ? DOL_MAIN_URL_ROOT : '';
+		}
+		if ($instance === '') {
+			throw new UnexpectedValueException('Missing stable Dolibarr instance identity');
+		}
+		return 'dolibarr-'.$conf->entity.'-'.((int) $actioncomm_id).'-cal'.((int) $calendar_id).'-'.substr(hash('sha256', $instance), 0, 24).'@dolibarr.local';
 	}
 
 	/**

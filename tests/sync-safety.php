@@ -4,13 +4,15 @@ require_once __DIR__.'/../class/caldavsync/caldavsync_inbound.trait.php';
 require_once __DIR__.'/../lib/caldav/caldavclient_fetch.trait.php';
 require_once __DIR__.'/../lib/caldav/caldavclient_ical.trait.php';
 define('DOL_DATA_ROOT', sys_get_temp_dir());
+define('MAIN_DB_PREFIX','llx_');
 function dol_syslog(...$args) {}
 function getDolGlobalInt($name) { return 0; }
+function getDolGlobalString($name,$fallback="") { return $name === "MAIN_DOLIBARR_USER_TIMEZONE" ? "Europe/Berlin" : $fallback; }
 function check($ok, $message) { if (!$ok) throw new RuntimeException($message); }
 class ActionComm {
     public static $records = array();
     public static $calls = array();
-    public $id, $datep, $datef, $label = 'fixture';
+    public $id, $datep, $datef, $label = 'fixture', $entity=1, $note_private='', $location='', $fulldayevent=0;
     public function __construct($db) {}
     public function fetch($id) { if (!isset(self::$records[$id])) return 0; $this->id=$id; [$this->datep,$this->datef]=self::$records[$id]; return 1; }
     public function create($user, $notrigger=0) { self::$calls[]=['create',$notrigger]; $this->id=100; return 100; }
@@ -34,15 +36,16 @@ class CalDAVClient {
     public function __construct($connection=null) {}
     private function request(...$args) { self::$requestXml=$args[2]; return self::$response; }
 }
+class SafetyDB { public function begin() {return 1;} public function commit() {return 1;} public function rollback() {return 1;} public function query($sql) {return true;} }
 class SyncFixture {
     use CalDAVSyncInboundTrait;
     public $db=null, $error;
     public function invoke($name,...$args) { return $this->$name(...$args); }
 }
 $user=(object)['id'=>1];
-$conf=(object)[];
+$conf=(object)['entity'=>1];
 $calendar=(object)['id'=>1,'url'=>'https://example.invalid/calendar','name'=>'fixture'];
-$sync=new SyncFixture;
+$sync=new SyncFixture; $sync->db=new SafetyDB;
 $start=new DateTime('2026-01-01T00:00:00Z'); $end=new DateTime('2027-01-01T00:00:00Z');
 foreach ([1=>['2025-01-01','2025-01-02'],2=>['2026-06-01','2026-06-02'],3=>['2027-02-01','2027-02-02']] as $id=>$dates) {
     ActionComm::$records[$id]=array_map('strtotime',$dates);
